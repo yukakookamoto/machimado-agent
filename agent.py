@@ -173,8 +173,8 @@ class Walk:
             return None
         k = max(.2, math.cos(math.radians(lat)))
         pts = []
-        for off in (0, -20, 20, -40, 40):
-            for dist in (30, 55, 85, 120):
+        for off in (0, -12, 12, -25, 25, -40, 40):
+            for dist in (30, 55, 85, 120, 160):
                 br = math.radians(center + off)
                 pts.append((lat + dist * math.cos(br) / 111320, lng + dist * math.sin(br) / (111320 * k)))
         found = await asyncio.gather(*[self._sv_meta(a, b, 35) for a, b in pts], return_exceptions=True)
@@ -185,12 +185,12 @@ class Walk:
             cl = c.get("location", {})
             p = (cl.get("lat"), cl.get("lng"))
             dist = _dist_m((lat, lng), p)
-            if dist < 15 or dist > 160:
+            if dist < 15 or dist > 200:
                 continue
             side = _angdiff(_bearing((lat, lng), p), center)   # 建物から見て、写真がどの方角にあるか
-            if side > 50:
+            if side > 45:
                 continue
-            score = side * 2 + abs(dist - 60) / 2
+            score = side * 3 + abs(dist - 70) / 4   # まっすぐ正面にあるものを強く優先
             if best is None or score < best[0]:
                 best = (score, c, dist)
         return (best[1], best[2]) if best else None
