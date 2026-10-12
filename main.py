@@ -7,6 +7,8 @@ import os
 import sys
 import time
 import uuid
+
+import httpx
 from collections import defaultdict, deque
 
 from fastapi import FastAPI, Request
@@ -68,6 +70,50 @@ async def healthz():
 async def config():
     # 地図を表示するための鍵（Google Cloud 側で、使えるAPIとサイトを絞っておく）
     return {"mapsKey": MAPS_API_KEY}
+
+
+_local_cache: dict[str, tuple[float, dict]] = {}
+_WMO = {0: "快晴", 1: "晴れ", 2: "くもり時々晴れ", 3: "くもり", 45: "霧", 48: "霧", 51: "霧雨", 53: "霧雨", 55: "霧雨",
+        61: "小雨", 63: "雨", 65: "強い雨", 66: "冷たい雨", 67: "冷たい雨", 71: "小雪", 73: "雪", 75: "大雪", 77: "雪",
+        80: "にわか雨", 81: "にわか雨", 82: "強いにわか雨", 85: "にわか雪", 86: "にわか雪", 95: "雷雨", 96: "雷雨", 99: "雷雨"}
+
+
+@app.get("/api/local")
+async def local_info(lat: float, lng: float):
+    """現地の時間（タイムゾーン）と、いまの天気。Google の Weather API、だめなら Open-Meteo"""
+    key = f"{lat:.2f},{lng:.2f}"
+    hit = _local_cache.get(key)
+    if hit and time.time() - hit[0] < 600:
+        return hit[1]
+    out: dict = {}
+    async with httpx.AsyncClient(timeout=8.0) as http:
+        try:
+            r = await http.get("https://weather.googleapis.com/v1/currentConditions:lookup", params={
+                "key": MAPS_API_KEY, "location.latitude": lat, "location.longitude": lng, "languageCode": "ja"})
+            if r.status_code == 200:
+                d = r.json()
+                wc = d.get("weatherCondition") or {}
+                icon = wc.get("iconBaseUri")
+                out = {"tz": (d.get("timeZone") or {}).get("id"), "temp": (d.get("temperature") or {}).get("degrees"),
+                       "text": (wc.get("description") or {}).get("text"), "icon": f"{icon}.svg" if icon else None,
+                       "day": d.get("isDaytime"), "source": "Google Weather"}
+            else:
+                log.warning(json.dumps({"event": "weather_error", "status": r.status_code, "body": r.text[:200]}, ensure_ascii=False))
+        except Exception as e:
+            log.warning("weather failed: %s", e)
+        if not out.get("tz"):
+            try:
+                r = await http.get("https://api.open-meteo.com/v1/forecast", params={
+                    "latitude": lat, "longitude": lng, "current": "temperature_2m,weather_code,is_day", "timezone": "auto"})
+                if r.status_code == 200:
+                    d = r.json(); c = d.get("current") or {}
+                    out = {"tz": d.get("timezone"), "temp": c.get("temperature_2m"), "text": _WMO.get(c.get("weather_code")),
+                           "icon": None, "day": bool(c.get("is_day")), "source": "Open-Meteo"}
+            except Exception as e:
+                log.warning("open-meteo failed: %s", e)
+    if out.get("tz"):
+        _local_cache[key] = (time.time(), out)
+    return out
 
 
 @app.post("/api/voice")

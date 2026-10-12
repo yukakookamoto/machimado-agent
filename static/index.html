@@ -11,25 +11,26 @@
 @media (prefers-color-scheme:dark){:root{--bg:#17140F;--card:#221E18;--ink:#F1E9DC;--ink2:#B3A592;--line:#3A332A;--accent:#F08A62;--accent2:#7CC2AE;--ok:#7CCB97;--ng:#F2876C;--glow:#3A2E1F;--shadow:0 6px 24px rgba(0,0,0,.4)}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.7 "Noto Sans JP",system-ui,sans-serif}
-header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;padding:18px 24px 6px}
-h1{margin:0;font:700 28px/1.2 "Zen Maru Gothic",sans-serif;letter-spacing:.04em}
+header{padding:10px 24px 4px;display:grid;gap:6px}
+.hrow{display:flex;align-items:center;gap:16px}
+h1{margin:0;font:700 26px/1.2 "Zen Maru Gothic",sans-serif;letter-spacing:.04em;flex:none}
 h1 span{color:var(--accent)}
-.sub{color:var(--ink2);font-size:14px}
-main{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;padding:10px 24px 32px}
-@media (max-width:980px){main{grid-template-columns:1fr}}
+.askbar{flex:1;display:flex;gap:8px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:4px 4px 4px 16px;box-shadow:var(--shadow);max-width:860px}
+.askbar input{flex:1;border:0;background:transparent;font:inherit;color:var(--ink);outline:none;min-width:0;padding:6px 0}
+.presets{display:flex;gap:6px;flex-wrap:wrap;padding-left:2px}
+.presets .chip{padding:2px 11px;font-size:12.5px}
+main{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;padding:8px 24px 24px}
+@media (max-width:980px){main{grid-template-columns:1fr}#pano{height:auto!important;aspect-ratio:16/9;min-height:0}}
 .card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}
-.ask{padding:14px 16px;display:grid;gap:10px}
-.ask textarea{width:100%;resize:vertical;min-height:52px;border:1px solid var(--line);border-radius:12px;padding:10px 12px;font:inherit;background:var(--bg);color:var(--ink)}
-.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .chip{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:5px 12px;font:inherit;font-size:13px;cursor:pointer}
 .chip:hover{border-color:var(--accent)}
-.go{margin-left:auto;border:0;background:var(--accent);color:#fff;border-radius:999px;padding:9px 22px;font:700 15px "Zen Maru Gothic",sans-serif;cursor:pointer}
+.go{flex:none;border:0;background:var(--accent);color:#fff;border-radius:999px;padding:8px 22px;font:700 15px "Zen Maru Gothic",sans-serif;cursor:pointer}
 .go:disabled{opacity:.5;cursor:wait}
-.stage{margin-top:14px;overflow:hidden}
-.stopbar{display:flex;gap:6px;padding:10px 14px;overflow-x:auto;border-bottom:1px solid var(--line)}
+.stage{overflow:hidden}
+.stopbar{display:flex;gap:6px;padding:7px 12px;overflow-x:auto;border-bottom:1px solid var(--line)}
 .stopbar button{flex:none;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:4px 12px;font:inherit;font-size:13px;cursor:pointer;white-space:nowrap}
 .stopbar button.on{background:var(--accent2);color:#fff;border-color:var(--accent2)}
-.info{padding:14px 18px 18px;display:grid;gap:8px}
+.info{padding:10px 18px 14px;display:grid;gap:6px}
 .info h2{margin:0;font:700 22px/1.3 "Zen Maru Gothic",sans-serif}
 .info h2 small{font:500 14px "Noto Sans JP";color:var(--ink2);margin-left:8px}
 .meta{font-size:12.5px;color:var(--ink2)}
@@ -41,7 +42,12 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;padding:10p
 .nav button:disabled{opacity:.4}
 .tourbtn{border:0!important;background:var(--accent2)!important;color:#fff!important;font:700 14px "Zen Maru Gothic",sans-serif!important}
 .tourbtn.off{background:var(--bg)!important;color:var(--ink)!important;border:1px solid var(--line)!important}
-.welcome{padding:22px 20px;color:var(--ink2)}
+.welcome{padding:14px 18px;color:var(--ink2)}
+.local{position:absolute;top:12px;left:14px;z-index:6;display:flex;align-items:center;gap:6px;background:rgba(43,38,32,.72);color:#fff;border-radius:999px;padding:3px 12px 3px 6px;font-size:13px;pointer-events:none}
+.local img{width:26px;height:26px}
+.local b{font:700 14px "Zen Maru Gothic",sans-serif}
+.lmeta{display:inline-flex;gap:6px;align-items:center}
+.lmeta img{width:18px;height:18px;vertical-align:-4px}
 .welcome b{color:var(--ink)}
 .spin{display:inline-block;width:13px;height:13px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp 1s linear infinite;vertical-align:-2px}
 @keyframes sp{to{transform:rotate(360deg)}}
@@ -49,7 +55,7 @@ footer{padding:0 24px 24px;font-size:12px;color:var(--ink2)}
 
 /* ストリートビューと、その上にのせるもの */
 .view{position:relative;background:#1b1814}
-#pano{width:100%;aspect-ratio:16/9;background:linear-gradient(135deg,#d9cdb8,#efe5d3);display:grid;place-items:center;color:var(--ink2);font-size:14px}
+#pano{width:100%;height:min(calc((100vw - 424px) * .5625), calc(100vh - 330px));min-height:340px;background:linear-gradient(135deg,#d9cdb8,#efe5d3);display:grid;place-items:center;color:var(--ink2);font-size:14px}
 @media (prefers-color-scheme:dark){#pano{background:linear-gradient(135deg,#2b261f,#3a3329)}}
 #still{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .6s;pointer-events:none;z-index:2}
 #still.on{opacity:1}
@@ -87,7 +93,7 @@ body.big .mochi-body img{width:78px}
 aside{display:grid;gap:16px;align-content:start}
 .mapbox{padding:12px 14px}
 .mapbox h3,.trace h3{margin:0 0 6px;font:700 16px "Zen Maru Gothic",sans-serif}
-#map{width:100%;height:220px;border-radius:10px;background:var(--bg)}
+#map{width:100%;height:300px;border-radius:10px;background:var(--bg)}
 
 /* エージェントの足あと */
 .trace{padding:12px 14px;max-height:calc(100vh - 120px);overflow:auto}
@@ -117,26 +123,28 @@ aside{display:grid;gap:16px;align-content:start}
 </style>
 </head>
 <body>
-<header><h1>まち<span>まど</span></h1><div class="sub">AIエージェントが「本当に歩ける」海外の散歩道を組み立てて、もちこがストリートビューで案内します</div></header>
+<header>
+  <div class="hrow">
+    <h1 title="AIエージェントが「本当に歩ける」海外の散歩道を組み立てて、もちこがストリートビューで案内します">まち<span>まど</span></h1>
+    <div class="askbar"><input id="req" maxlength="300" placeholder="どこを、どんなふうに歩きたい？　例：パリで朝市と古い路地を30分"><button class="go" id="go">出発する</button></div>
+  </div>
+  <div class="presets" id="presets">
+    <button class="chip">パリの朝市と古い路地を30分</button>
+    <button class="chip">ロンドンの古本屋さんめぐり</button>
+    <button class="chip">ニューヨークで映画のロケ地を歩く</button>
+    <button class="chip">ローマの遺跡と広場をのんびり</button>
+    <button class="chip">バルセロナでガウディの建築を見る</button>
+    <button class="chip">台北の夜市と古い街並み</button>
+  </div>
+</header>
 <main>
   <section>
-    <div class="card ask">
-      <textarea id="req" maxlength="300" placeholder="例：パリで、朝市と古い路地を30分くらい歩きたい"></textarea>
-      <div class="row" id="presets">
-        <button class="chip">パリの朝市と古い路地を30分</button>
-        <button class="chip">ロンドンの古本屋さんめぐり</button>
-        <button class="chip">ニューヨークで映画のロケ地を歩く</button>
-        <button class="chip">ローマの遺跡と広場をのんびり</button>
-        <button class="chip">バルセロナでガウディの建築を見る</button>
-        <button class="chip">台北の夜市と古い街並み</button>
-        <button class="go" id="go">出発する</button>
-      </div>
-    </div>
     <div class="card stage" id="stage">
       <div class="stopbar" id="stopbar" hidden></div>
       <div class="view" id="view">
         <div id="pano">行き先を入れて「出発する」を押してください</div>
         <img id="still" alt="">
+        <div class="local" id="local" hidden></div>
         <div class="plate" id="plate"></div>
         <div class="walking" id="walking" hidden></div>
         <button class="bigbtn" id="bigBtn" hidden>⛶ 大きな画面で歩く</button>
@@ -161,7 +169,7 @@ aside{display:grid;gap:16px;align-content:start}
     </div>
   </aside>
 </main>
-<footer>画像：Google ストリートビュー／解説の出典：Wikipedia（各地点にリンク）。AIの解説にはまちがいが含まれることがあります。</footer>
+<footer>まちまど：AIエージェントが「本当に歩ける」海外の散歩道を組み立てて、もちこがストリートビューで案内します。画像：Google ストリートビュー／解説の出典：Wikipedia（各地点にリンク）。AIの解説にはまちがいが含まれることがあります。</footer>
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -258,7 +266,7 @@ function renderInfo(i){
   const lang = guessLang(s.phrase);
   $("#info").className = "info";
   $("#info").innerHTML = `<h2>${esc(s.name)}${s.local_name ? `<small>${esc(s.local_name)}</small>` : ""}</h2>
-    <div class="meta">${s.from_prev_m ? `前の地点から約${s.from_prev_m >= 1000 ? (s.from_prev_m / 1000).toFixed(1) + "km" : s.from_prev_m + "m"}・` : ""}${s.date ? `撮影 ${esc(s.date)}・` : ""}${s.source ? `<a href="${esc(s.source)}" target="_blank" rel="noopener">出典</a>` : ""}</div>
+    <div class="meta"><span class="lmeta" id="lmeta"></span>${local.data && local.data.tz ? "・" : ""}${s.from_prev_m ? `前の地点から約${s.from_prev_m >= 1000 ? (s.from_prev_m / 1000).toFixed(1) + "km" : s.from_prev_m + "m"}・` : ""}${s.date ? `撮影 ${esc(s.date)}・` : ""}${s.source ? `<a href="${esc(s.source)}" target="_blank" rel="noopener">出典</a>` : ""}</div>
     <p style="margin:0">${esc(s.narration)}</p>
     ${s.phrase ? `<div class="phrase"><button class="say" data-say="${esc(s.phrase)}" data-lang="${lang}" title="読み上げ">🔊</button><div><b>${esc(s.phrase)}</b><br><small>${esc(s.phrase_reading || "")}　${esc(s.phrase_meaning || "")}</small></div></div>` : ""}
     <div class="nav"><button data-nav="-1" ${i ? "" : "disabled"}>‹ 前へ</button><button class="tourbtn ${tour.on ? "" : "off"}" id="tourBtn">${tour.on ? "⏸ 自動案内を止める" : "▶ もちこと自動で歩く"}</button><span class="meta">${i + 1} / ${walk.stops.length}</span><button data-nav="1" ${i < walk.stops.length - 1 ? "" : "disabled"}>次へ ›</button></div>`;
@@ -266,13 +274,37 @@ function renderInfo(i){
 // 手で地点を見る（自動案内オフのとき）
 async function show(i){
   const s = walk.stops[i]; if (!s) return; cur = i; tour.at = i; tour.to = -1;
-  renderInfo(i); renderBar(); markCards(); plate(s, i); walkerAt(s);
+  renderInfo(i); renderLocal(); renderBar(); markCards(); plate(s, i); walkerAt(s);
   if (map) map.panTo({lat: s.lat, lng: s.lng});
   await setView(s); setTimeout(hideStill, 2500);
   mochiSay(s.narration);
 }
 function goTo(i){ if (tour.on) tourFrom(i); else { tourStop(); show(i); } }
 function guessLang(t){ t = t || ""; if (/[àâçéèêëîïôûùüÿœ]/i.test(t)) return "fr-FR"; if (/[¿¡ñ]/.test(t)) return "es-ES"; if (/[äöüß]/i.test(t)) return "de-DE"; if (/[一-鿿]/.test(t)) return "zh-TW"; if (/[àèìòù]/i.test(t)) return "it-IT"; return "en-US"; }
+
+// ================= 現地の時間と天気 =================
+const local = {key: "", data: null, timer: null, say: null, pending: null};
+function localTime(tz){ try { return new Intl.DateTimeFormat("ja-JP", {timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false}).format(new Date()); } catch { return ""; } }
+function localDay(tz){ try { return new Intl.DateTimeFormat("ja-JP", {timeZone: tz, month: "numeric", day: "numeric", weekday: "short"}).format(new Date()); } catch { return ""; } }
+function renderLocal(){
+  const d = local.data, el = $("#local"); if (!d || !d.tz) { el.hidden = true; return; }
+  el.hidden = false;
+  el.innerHTML = `${d.icon ? `<img src="${esc(d.icon)}" alt="">` : "🕒"}<span>現地 <b>${localTime(d.tz)}</b>${d.text ? `・${esc(d.text)}` : ""}${d.temp != null ? ` ${Math.round(d.temp)}℃` : ""}</span>`;
+  const m = $("#lmeta"); if (m) m.innerHTML = `${d.icon ? `<img src="${esc(d.icon)}" alt="">` : ""}現地 ${localDay(d.tz)} ${localTime(d.tz)}${d.text ? `・${esc(d.text)}` : ""}${d.temp != null ? ` ${Math.round(d.temp)}℃` : ""}`;
+}
+async function loadLocal(s){
+  const k = `${s.lat.toFixed(1)},${s.lng.toFixed(1)}`; if (local.key === k) return local.data;
+  local.key = k;
+  try { const r = await fetch(`/api/local?lat=${s.lat}&lng=${s.lng}`); if (r.ok) local.data = await r.json(); } catch {}
+  renderLocal(); clearInterval(local.timer); local.timer = setInterval(renderLocal, 20000);
+  const d = local.data;
+  if (d && d.tz) {   // 最初の場所に着いたら、もちこが現地の時間と天気を伝える
+    const h = +localTime(d.tz).slice(0, 2), part = h < 5 ? "夜中" : h < 11 ? "朝" : h < 16 ? "お昼" : h < 19 ? "夕方" : "夜";
+    local.say = `いま現地は${part}の${h}時${d.text ? `、${d.text}` : ""}${d.temp != null ? `で${Math.round(d.temp)}度` : ""}だよ。`;
+    fetchVoice(local.say);
+  }
+  return d;
+}
 
 // ================= もちこの声（Gemini の音声生成。だめならブラウザの声） =================
 const voiceCache = new Map();
@@ -392,7 +424,7 @@ async function walkTo(a, b, my){
 async function arrive(i, my){
   const s = walk.stops[i];
   cur = i; tour.at = i; tour.to = -1;
-  renderInfo(i); renderBar(); markCards(); plate(s, i); walkerAt(s);
+  renderInfo(i); renderLocal(); renderBar(); markCards(); plate(s, i); walkerAt(s);
   if (map) map.panTo({lat: s.lat, lng: s.lng});
   // 景色が出るまで、もちこは話すのを待つ
   const ready = setView(s);
@@ -410,6 +442,8 @@ async function tourFrom(i){
       const s = walk.stops[i]; if (!s) return;
       if (!(await arrive(i, my))) return;
       lookAround(true);
+      if (local.pending) { await Promise.race([local.pending, sleep(3500)]); local.pending = null; }
+      if (local.say) { const w = local.say; local.say = null; await mochiSay(w); if (my !== tour.token) return; }
       const said = mochiSay(s.narration);
       const nx = walk.stops[i + 1]; if (nx) fetchVoice(`次は${nx.name}だよ。いっしょに歩こう！`); else if (walk.done) fetchVoice(BYE);
       if (nx) fetchVoice(nx.narration);
@@ -444,6 +478,7 @@ async function go(){
   const text = $("#req").value.trim(); if (!text) { $("#req").focus(); return; }
   $("#go").disabled = true; $("#cards").innerHTML = ""; $("#stats").textContent = ""; work = null;
   walk = {stops: []}; cur = -1; tour.at = -1; renderBar(); tourStop();
+  local.key = ""; local.data = null; local.say = null; $("#local").hidden = true;
   if (trail) trail.setPath([]);
   mochiSay("もちこだよ。いっしょに歩く道を、いま探してるね。ちょっと待っててね！");
   setNow(`<span class="spin"></span> 散歩の計画を立てています`);
@@ -492,7 +527,7 @@ function onEvent(ev){
     if (ev.stop) {
       walk.stops.push(ev.stop); const i = walk.stops.length - 1;
       finishCard(ev.stop, i); drawRoute(); renderBar();
-      if (i === 0) { if (tour.on) tourFrom(0); else show(0); }
+      if (i === 0) { local.pending = loadLocal(ev.stop); if (tour.on) tourFrom(0); else show(0); }
       else markCards();
     }
   }
@@ -503,7 +538,7 @@ function onEvent(ev){
     const st = ev.walk.stats || {};
     setNow(`✅ 「${esc(walk.title)}」ができました（${walk.stops.length}か所）`, "done");
     $("#stats").textContent = `${st.seconds}秒・道具を${st.tool_calls}回使用・${st.model}`;
-    if (cur < 0 && walk.stops.length) { if (tour.on) tourFrom(0); else show(0); }
+    if (cur < 0 && walk.stops.length) { local.pending = loadLocal(walk.stops[0]); if (tour.on) tourFrom(0); else show(0); }
   }
   else if (ev.type === "error") fail(ev.message);
 }
@@ -516,7 +551,7 @@ function fail(msg){
 
 $("#go").onclick = go;
 $("#presets").addEventListener("click", e => { const c = e.target.closest(".chip"); if (c) { $("#req").value = c.textContent; go(); } });
-$("#req").addEventListener("keydown", e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) go(); });
+$("#req").addEventListener("keydown", e => { if (e.key === "Enter" && !e.isComposing) go(); });
 document.addEventListener("click", e => {
   if (e.target.closest("#tourBtn")) { tour.on = !tour.on; if (tour.on) tourFrom(Math.max(0, cur)); else { tourStop(); renderInfo(cur); markCards(); } return; }
   const card = e.target.closest(".sc[data-i]"); if (card) return goTo(+card.dataset.i);
