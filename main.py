@@ -10,10 +10,11 @@ import uuid
 from collections import defaultdict, deque
 
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from agent import MAPS_API_KEY, run_walk
+import voice
 
 
 class JsonFormatter(logging.Formatter):
@@ -34,6 +35,19 @@ app.mount("/static", StaticFiles(directory=os.path.join(HERE, "static")), name="
 # かんたんな使いすぎよけ（1つのIPから 1時間に RATE_PER_HOUR 回まで）
 RATE_PER_HOUR = int(os.environ.get("RATE_PER_HOUR", "20"))
 _hits: dict[str, deque] = defaultdict(deque)
+VOICE_PER_HOUR = int(os.environ.get("VOICE_PER_HOUR", "200"))
+_vhits: dict[str, deque] = defaultdict(deque)
+
+
+def _over(store: dict, ip: str, limit: int) -> bool:
+    now = time.time()
+    q = store[ip]
+    while q and now - q[0] > 3600:
+        q.popleft()
+    if len(q) >= limit:
+        return True
+    q.append(now)
+    return False
 
 
 def _client_ip(req: Request) -> str:
@@ -54,6 +68,29 @@ async def healthz():
 async def config():
     # 地図を表示するための鍵（Google Cloud 側で、使えるAPIとサイトを絞っておく）
     return {"mapsKey": MAPS_API_KEY}
+
+
+@app.post("/api/voice")
+async def speak(req: Request):
+    """もちこの声（Gemini の音声生成）。失敗したら 502 を返し、画面側はブラウザの声に切りかえる"""
+    if _over(_vhits, _client_ip(req), VOICE_PER_HOUR):
+        return JSONResponse({"error": "rate"}, status_code=429)
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    text = str(body.get("text", "")).strip()[:700]
+    lang = "ja" if str(body.get("lang", "ja")).lower().startswith("ja") else "other"
+    if not text:
+        return JSONResponse({"error": "empty"}, status_code=400)
+    t0 = time.time()
+    try:
+        wav = await voice.synth(text, lang)
+    except Exception as e:
+        log.warning(json.dumps({"event": "voice_error", "error": str(e)[:300]}, ensure_ascii=False))
+        return JSONResponse({"error": "voice"}, status_code=502)
+    log.info(json.dumps({"event": "voice", "chars": len(text), "seconds": round(time.time() - t0, 2), "model": voice._models[0] if voice._models else None}, ensure_ascii=False))
+    return Response(wav, media_type="audio/wav", headers={"Cache-Control": "private, max-age=86400"})
 
 
 @app.post("/api/walk")
