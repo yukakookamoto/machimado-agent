@@ -56,7 +56,7 @@ footer{padding:0 24px 24px;font-size:12px;color:var(--ink2)}
 .walking{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:rgba(43,38,32,.78);color:#fff;border-radius:999px;padding:6px 16px;font-size:13.5px;z-index:6;pointer-events:none;white-space:nowrap;display:flex;gap:10px;align-items:center}
 .walking .bar{width:90px;height:6px;border-radius:3px;background:rgba(255,255,255,.25);overflow:hidden}
 .walking .bar i{display:block;height:100%;background:#F2B36B;width:0}
-.plate{position:absolute;top:14px;left:14px;z-index:6;background:rgba(255,253,248,.95);color:#2B2620;border-radius:12px;padding:6px 14px;font:700 16px "Zen Maru Gothic",sans-serif;box-shadow:0 4px 14px rgba(0,0,0,.25);pointer-events:none;opacity:0;transition:opacity .5s}
+.plate{position:absolute;top:56px;left:14px;z-index:6;background:rgba(255,253,248,.95);color:#2B2620;border-radius:12px;padding:6px 14px;font:700 16px "Zen Maru Gothic",sans-serif;box-shadow:0 4px 14px rgba(0,0,0,.25);pointer-events:none;opacity:0;transition:opacity .5s}
 .plate.on{opacity:1}
 .plate small{display:block;font:500 11.5px "Noto Sans JP";color:#7A6E60}
 .bigbtn{position:absolute;top:12px;right:12px;z-index:6;border:0;border-radius:999px;background:rgba(43,38,32,.72);color:#fff;padding:6px 14px;font:500 13px "Noto Sans JP";cursor:pointer}
@@ -354,7 +354,7 @@ async function walkTo(a, b, my){
   hideStill();
   let pos = {lat: a.lat, lng: a.lng}, id = a.pano_id;
   const total = distM(pos, b), seen = new Set([id]);
-  const STEPS = 18, path = [pos];
+  const STEPS = 12, path = [pos];
   if (!trail) trail = new google.maps.Polyline({map, strokeColor: "#2F6B5E", strokeOpacity: .9, strokeWeight: 4});
   trail.setPath(path);
   mochiSay(`次は${b.name}だよ。いっしょに歩こう！`);
@@ -364,7 +364,7 @@ async function walkTo(a, b, my){
     const rem = distM(pos, b); if (rem < 30) break;
     const want = bearing(pos, b), left = STEPS - k;
     let next = null;
-    if (rem / left <= 22) {   // 近いときは、となりの写真へ1歩ずつ
+    if (rem / left <= 14) {   // 近いときは、となりの写真へ1歩ずつ
       const d = await svGet({pano: id});
       const links = (d && d.links || []).filter(l => l.pano && !seen.has(l.pano));
       links.sort((x, y) => angDiff(x.heading, want) - angDiff(y.heading, want));
@@ -384,7 +384,7 @@ async function walkTo(a, b, my){
     pano.setPano(id); pano.setPov({heading: head, pitch: 0, zoom: 1}); step();
     walkerAt(pos); trail.setPath(path); if (map) map.panTo(pos);
     walkBadge(b, distM(pos, b), total);
-    await sleep(1000);
+    await sleep(750);
   }
   $("#walking").hidden = true; tour.to = -1;
   return my === tour.token;
