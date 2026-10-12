@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>まちまど — バーチャル海外散歩エージェント</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#F6F1E7;--card:#FFFCF6;--ink:#2B2620;--ink2:#7A6E60;--line:#E4D9C6;--accent:#C2502E;--accent2:#2F6B5E;--ok:#2F7A4F;--ng:#B8402A;--shadow:0 6px 24px rgba(60,40,20,.10)}
+@media (prefers-color-scheme:dark){:root{--bg:#17140F;--card:#221E18;--ink:#F1E9DC;--ink2:#B3A592;--line:#3A332A;--accent:#F08A62;--accent2:#7CC2AE;--ok:#7CCB97;--ng:#F2876C;--shadow:0 6px 24px rgba(0,0,0,.4)}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.7 "Noto Sans JP",system-ui,sans-serif}
+header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;padding:18px 24px 6px}
+h1{margin:0;font:700 28px/1.2 "Zen Maru Gothic",sans-serif;letter-spacing:.04em}
+h1 span{color:var(--accent)}
+.sub{color:var(--ink2);font-size:14px}
+main{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;padding:10px 24px 32px}
+@media (max-width:980px){main{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}
+.ask{padding:14px 16px;display:grid;gap:10px}
+.ask textarea{width:100%;resize:vertical;min-height:52px;border:1px solid var(--line);border-radius:12px;padding:10px 12px;font:inherit;background:var(--bg);color:var(--ink)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.chip{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:5px 12px;font:inherit;font-size:13px;cursor:pointer}
+.chip:hover{border-color:var(--accent)}
+.go{margin-left:auto;border:0;background:var(--accent);color:#fff;border-radius:999px;padding:9px 22px;font:700 15px "Zen Maru Gothic",sans-serif;cursor:pointer}
+.go:disabled{opacity:.5;cursor:wait}
+.stage{margin-top:14px;overflow:hidden}
+#pano{width:100%;aspect-ratio:16/9;background:linear-gradient(135deg,#d9cdb8,#efe5d3);display:grid;place-items:center;color:var(--ink2);font-size:14px}
+@media (prefers-color-scheme:dark){#pano{background:linear-gradient(135deg,#2b261f,#3a3329)}}
+.stopbar{display:flex;gap:6px;padding:10px 14px;overflow-x:auto;border-bottom:1px solid var(--line)}
+.stopbar button{flex:none;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:4px 12px;font:inherit;font-size:13px;cursor:pointer;white-space:nowrap}
+.stopbar button.on{background:var(--accent2);color:#fff;border-color:var(--accent2)}
+.stopbar .new{animation:pop .5s ease}
+@keyframes pop{from{transform:scale(.6);opacity:0}to{transform:none;opacity:1}}
+.info{padding:14px 18px 18px;display:grid;gap:8px}
+.info h2{margin:0;font:700 22px/1.3 "Zen Maru Gothic",sans-serif}
+.info h2 small{font:500 14px "Noto Sans JP";color:var(--ink2);margin-left:8px}
+.meta{font-size:12.5px;color:var(--ink2)}
+.phrase{display:flex;gap:10px;align-items:center;background:var(--bg);border:1px dashed var(--line);border-radius:12px;padding:8px 12px}
+.phrase b{font-size:17px}
+.say{border:0;background:var(--accent2);color:#fff;border-radius:999px;width:34px;height:34px;cursor:pointer;flex:none;font-size:16px}
+.nav{display:flex;gap:8px;justify-content:space-between;align-items:center}
+.nav button{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:7px 16px;font:inherit;cursor:pointer}
+.nav button:disabled{opacity:.4}
+.welcome{padding:22px 20px;color:var(--ink2)}
+.welcome b{color:var(--ink)}
+aside{display:grid;gap:16px;align-content:start}
+.trace{padding:12px 14px;max-height:calc(100vh - 140px);overflow:auto}
+.trace h3,.mapbox h3{margin:0 0 6px;font:700 16px "Zen Maru Gothic",sans-serif}
+.trace .hint{font-size:12px;color:var(--ink2);margin:0 0 8px}
+.ev{font-size:13px;padding:6px 0;border-top:1px dashed var(--line);display:grid;grid-template-columns:22px 1fr;gap:6px;animation:fade .3s}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.ev .ic{text-align:center}
+.ev .tx{word-break:break-word}
+.ev small{display:block;color:var(--ink2);font-size:11.5px}
+.ev.think .tx{font-style:italic}
+.ev.ng .tx{color:var(--ng)} .ev.ok .tx{color:var(--ok)}
+.stats{font-size:12px;color:var(--ink2);margin-top:6px}
+.mapbox{padding:12px 14px}
+#map{width:100%;height:220px;border-radius:10px;background:var(--bg)}
+.quiz{padding:16px 18px;display:grid;gap:12px}
+.quiz h2{margin:0;font:700 20px "Zen Maru Gothic",sans-serif}
+.qq{display:grid;gap:6px}
+.qq .opts{display:grid;gap:6px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+.qq button{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:10px;padding:8px 10px;text-align:left;font:inherit;cursor:pointer}
+.qq button.right{background:#d8efdf;border-color:var(--ok);color:#1d4d2f}
+.qq button.wrong{background:#f7dcd4;border-color:var(--ng);color:#6b2414}
+.qq .ex{font-size:13px;color:var(--ink2)}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp 1s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes sp{to{transform:rotate(360deg)}}
+footer{padding:0 24px 24px;font-size:12px;color:var(--ink2)}
+</style>
+</head>
+<body>
+<header><h1>まち<span>まど</span></h1><div class="sub">AIエージェントが「本当に歩ける」海外の散歩道を組み立てて、ストリートビューで案内します</div></header>
+<main>
+  <section>
+    <div class="card ask">
+      <textarea id="req" maxlength="300" placeholder="例：パリで、朝市と古い路地を30分くらい歩きたい"></textarea>
+      <div class="row" id="presets">
+        <button class="chip">パリの朝市と古い路地を30分</button>
+        <button class="chip">ロンドンの古本屋さんめぐり</button>
+        <button class="chip">ニューヨークで映画のロケ地を歩く</button>
+        <button class="chip">ローマの遺跡と広場をのんびり</button>
+        <button class="chip">バルセロナでガウディの建築を見る</button>
+        <button class="chip">台北の夜市と古い街並み</button>
+        <button class="go" id="go">出発する</button>
+      </div>
+    </div>
+    <div class="card stage" id="stage">
+      <div class="stopbar" id="stopbar" hidden></div>
+      <div id="pano">行き先を入れて「出発する」を押してください</div>
+      <div id="info" class="welcome">
+        <b>しくみ</b>：エージェントは、①行き先を考え、②実在の場所を探し、③その地点にストリートビューがあるかを確かめ、なければ自分で別の地点に差しかえ、④Wikipediaで事実を調べて解説を書きます。右の「足あと」で、考えて動いている様子が見えます。
+      </div>
+    </div>
+    <div class="card quiz" id="quiz" hidden></div>
+  </section>
+  <aside>
+    <div class="card mapbox"><h3>散歩の地図</h3><div id="map"></div></div>
+    <div class="card trace"><h3>エージェントの足あと</h3><p class="hint">考えたこと・使った道具・判断の結果</p><div id="trace"></div><div class="stats" id="stats"></div></div>
+  </aside>
+</main>
+<footer>画像：Google ストリートビュー／解説の出典：Wikipedia（各地点にリンク）。AIの解説にはまちがいが含まれることがあります。</footer>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let walk = {stops: []}, cur = -1, pano = null, map = null, markers = [], line = null, mapsReady = null;
+
+// ---- 地図の読みこみ ----
+async function loadMaps(){
+  if (mapsReady) return mapsReady;
+  mapsReady = (async () => {
+    const {mapsKey} = await (await fetch("/api/config")).json();
+    await new Promise((ok, ng) => { const s = document.createElement("script"); s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(mapsKey)}&v=weekly&language=ja&callback=__mapsOk`; window.__mapsOk = ok; s.onerror = ng; document.head.appendChild(s); });
+    map = new google.maps.Map($("#map"), {center: {lat: 48.8566, lng: 2.3522}, zoom: 13, disableDefaultUI: true, gestureHandling: "cooperative"});
+  })();
+  return mapsReady;
+}
+
+// ---- 足あと ----
+const ICON = {search_places: "🔎", check_street_view: "📷", wikipedia: "📚", add_stop: "📍", finish_walk: "🏁"};
+const LABEL = {search_places: "場所をさがす", check_street_view: "ストリートビューを確かめる", wikipedia: "Wikipediaで調べる", add_stop: "立ち寄り先に決定", finish_walk: "散歩を完成"};
+function addTrace(cls, icon, html){ const d = document.createElement("div"); d.className = "ev " + cls; d.innerHTML = `<span class="ic">${icon}</span><span class="tx">${html}</span>`; $("#trace").appendChild(d); const t = $("#trace").parentElement; t.scrollTop = t.scrollHeight; return d; }
+function argText(name, a){
+  if (name === "search_places") return esc(a.query);
+  if (name === "check_street_view") return `${(+a.lat).toFixed(4)}, ${(+a.lng).toFixed(4)}（半径${a.radius_m || 50}m）`;
+  if (name === "wikipedia") return `${esc(a.title)}（${esc(a.lang || "ja")}）`;
+  if (name === "add_stop") return esc(a.name);
+  if (name === "finish_walk") return esc(a.title);
+  return "";
+}
+
+// ---- 散歩を見せる ----
+function renderBar(){
+  const bar = $("#stopbar"); bar.hidden = !walk.stops.length;
+  bar.innerHTML = walk.stops.map((s, i) => `<button data-i="${i}" class="${i === cur ? "on" : ""}${i === walk.stops.length - 1 && !walk.done ? " new" : ""}">${i + 1}. ${esc(s.name)}</button>`).join("");
+}
+function drawRoute(){
+  if (!map) return;
+  markers.forEach(m => m.setMap(null)); markers = [];
+  const path = walk.stops.map(s => ({lat: s.lat, lng: s.lng}));
+  walk.stops.forEach((s, i) => { const m = new google.maps.Marker({position: path[i], map, label: String(i + 1)}); m.addListener("click", () => show(i)); markers.push(m); });
+  if (line) line.setMap(null);
+  line = new google.maps.Polyline({path, map, strokeColor: "#C2502E", strokeOpacity: .8, strokeWeight: 3});
+  if (path.length) { const b = new google.maps.LatLngBounds(); path.forEach(p => b.extend(p)); map.fitBounds(b, 30); if (path.length === 1) map.setZoom(15); }
+}
+function show(i){
+  const s = walk.stops[i]; if (!s) return; cur = i;
+  if (!pano) { $("#pano").innerHTML = ""; pano = new google.maps.StreetViewPanorama($("#pano"), {pano: s.pano_id, pov: {heading: s.heading || 0, pitch: 0}, zoom: 0, addressControl: false, fullscreenControl: true, motionTracking: false}); }
+  else { pano.setPano(s.pano_id); pano.setPov({heading: s.heading || 0, pitch: 0}); }
+  const lang = guessLang(s.phrase);
+  $("#info").className = "info";
+  $("#info").innerHTML = `<h2>${esc(s.name)}${s.local_name ? `<small>${esc(s.local_name)}</small>` : ""}</h2>
+    <div class="meta">${s.from_prev_m ? `前の地点から約${s.from_prev_m >= 1000 ? (s.from_prev_m / 1000).toFixed(1) + "km" : s.from_prev_m + "m"}・` : ""}${s.date ? `撮影 ${esc(s.date)}・` : ""}${s.source ? `<a href="${esc(s.source)}" target="_blank" rel="noopener">出典</a>` : ""}</div>
+    <p style="margin:0">${esc(s.narration)}</p>
+    ${s.phrase ? `<div class="phrase"><button class="say" data-say="${esc(s.phrase)}" data-lang="${lang}" title="読み上げ">🔊</button><div><b>${esc(s.phrase)}</b><br><small>${esc(s.phrase_reading || "")}　${esc(s.phrase_meaning || "")}</small></div></div>` : ""}
+    <div class="nav"><button data-nav="-1" ${i ? "" : "disabled"}>‹ 前へ</button><span class="meta">${i + 1} / ${walk.stops.length}</span><button data-nav="1" ${i < walk.stops.length - 1 ? "" : "disabled"}>次へ ›</button></div>`;
+  renderBar();
+  if (map && markers[i]) map.panTo(markers[i].getPosition());
+  speak(s.narration, "ja-JP");
+}
+function guessLang(t){ t = t || ""; if (/[àâçéèêëîïôûùüÿœ]/i.test(t)) return "fr-FR"; if (/[¿¡ñ]/.test(t)) return "es-ES"; if (/[äöüß]/i.test(t)) return "de-DE"; if (/[一-鿿]/.test(t)) return "zh-TW"; if (/[àèìòù]/i.test(t)) return "it-IT"; return "en-US"; }
+function speak(text, lang){ try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang = lang; u.rate = 1.0; speechSynthesis.speak(u); } catch {} }
+function renderQuiz(){
+  const qz = walk.quiz || []; if (!qz.length) return;
+  const el = $("#quiz"); el.hidden = false;
+  el.innerHTML = `<h2>🎓 散歩のふりかえりクイズ</h2>` + qz.map((q, i) => `<div class="qq" data-q="${i}"><b>Q${i + 1}. ${esc(q.q)}</b><div class="opts">${q.choices.map((c, j) => `<button data-a="${j}">${esc(c)}</button>`).join("")}</div><div class="ex" hidden>${esc(q.explain || "")}</div></div>`).join("");
+}
+
+// ---- 出発 ----
+async function go(){
+  const text = $("#req").value.trim(); if (!text) { $("#req").focus(); return; }
+  $("#go").disabled = true; $("#trace").innerHTML = ""; $("#stats").textContent = ""; $("#quiz").hidden = true;
+  walk = {stops: []}; cur = -1; renderBar();
+  $("#info").className = "welcome"; $("#info").innerHTML = `<span class="spin"></span>エージェントが散歩道を組み立てています…（右の「足あと」で様子が見えます）`;
+  const mapsP = loadMaps().catch(() => null);
+  let res;
+  try { res = await fetch("/api/walk", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({request: text})}); }
+  catch { fail("通信できませんでした"); return; }
+  if (!res.ok) { const j = await res.json().catch(() => ({})); fail(j.error || `エラー ${res.status}`); return; }
+  const rd = res.body.getReader(), dec = new TextDecoder(); let buf = "";
+  await mapsP;
+  for (;;) {
+    const {value, done} = await rd.read(); if (done) break;
+    buf += dec.decode(value, {stream: true});
+    let n; while ((n = buf.indexOf("\n")) >= 0) { const line = buf.slice(0, n); buf = buf.slice(n + 1); if (line.trim()) onEvent(JSON.parse(line)); }
+  }
+  $("#go").disabled = false;
+}
+let pendingTool = null;
+function onEvent(ev){
+  if (ev.type === "start") addTrace("", "🚶", `出発の準備（${esc(ev.model)}）<small>trace ${esc(ev.trace_id)}</small>`);
+  else if (ev.type === "think") addTrace("think", "💭", esc(ev.text));
+  else if (ev.type === "note") addTrace("", "ℹ️", esc(ev.text));
+  else if (ev.type === "tool") pendingTool = addTrace("", ICON[ev.name] || "🔧", `${LABEL[ev.name] || ev.name}：${argText(ev.name, ev.args)}`);
+  else if (ev.type === "result") {
+    if (ev.name === "check_street_view" && pendingTool) { pendingTool.classList.add(ev.ok ? "ok" : "ng"); pendingTool.querySelector(".tx").insertAdjacentHTML("beforeend", ev.ok ? " → ✅ 歩けます" : " → ❌ 画像なし（差しかえを考えます）"); }
+    if (ev.stop) { walk.stops.push(ev.stop); drawRoute(); if (walk.stops.length === 1) show(0); else renderBar(); }
+    if (ev.name === "search_places" && pendingTool) { const m = ev.summary.match(/"name": ?"([^"]+)"/); if (m) pendingTool.querySelector(".tx").insertAdjacentHTML("beforeend", `<small>→ ${esc(m[1])} など</small>`); }
+  }
+  else if (ev.type === "done") {
+    walk = {...ev.walk, done: true}; drawRoute(); show(Math.max(0, cur)); renderQuiz();
+    const st = ev.walk.stats || {};
+    addTrace("ok", "🏁", `完成：「${esc(walk.title)}」 ${walk.stops.length}か所`);
+    $("#stats").textContent = `${st.seconds}秒・道具を${st.tool_calls}回使用・${st.model}`;
+    if (walk.intro) speak(walk.intro, "ja-JP");
+  }
+  else if (ev.type === "error") fail(ev.message);
+}
+function fail(msg){ addTrace("ng", "⚠️", esc(msg)); $("#go").disabled = false; if (!walk.stops.length) { $("#info").className = "welcome"; $("#info").textContent = msg; } }
+
+$("#go").onclick = go;
+$("#presets").addEventListener("click", e => { const c = e.target.closest(".chip"); if (c) { $("#req").value = c.textContent; go(); } });
+$("#req").addEventListener("keydown", e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) go(); });
+document.addEventListener("click", e => {
+  const b = e.target.closest("#stopbar button"); if (b) return show(+b.dataset.i);
+  const n = e.target.closest("[data-nav]"); if (n) return show(cur + +n.dataset.nav);
+  const s = e.target.closest("[data-say]"); if (s) return speak(s.dataset.say, s.dataset.lang);
+  const a = e.target.closest(".qq button[data-a]");
+  if (a) { const qd = a.closest(".qq"), q = walk.quiz[+qd.dataset.q], k = +a.dataset.a; if (qd.dataset.done) return; qd.dataset.done = 1;
+    qd.querySelectorAll("button").forEach((x, j) => { if (j === q.answer) x.classList.add("right"); else if (j === k) x.classList.add("wrong"); }); qd.querySelector(".ex").hidden = false; }
+});
+loadMaps().catch(() => {});
+</script>
+</body>
+</html>
