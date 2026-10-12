@@ -7,15 +7,15 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#F6F1E7;--card:#FFFCF6;--ink:#2B2620;--ink2:#7A6E60;--line:#E4D9C6;--accent:#C2502E;--accent2:#2F6B5E;--ok:#2F7A4F;--ng:#B8402A;--shadow:0 6px 24px rgba(60,40,20,.10)}
-@media (prefers-color-scheme:dark){:root{--bg:#17140F;--card:#221E18;--ink:#F1E9DC;--ink2:#B3A592;--line:#3A332A;--accent:#F08A62;--accent2:#7CC2AE;--ok:#7CCB97;--ng:#F2876C;--shadow:0 6px 24px rgba(0,0,0,.4)}}
+:root{--bg:#F6F1E7;--card:#FFFCF6;--ink:#2B2620;--ink2:#7A6E60;--line:#E4D9C6;--accent:#C2502E;--accent2:#2F6B5E;--ok:#2F7A4F;--ng:#B8402A;--glow:#FFF1D6;--shadow:0 6px 24px rgba(60,40,20,.10)}
+@media (prefers-color-scheme:dark){:root{--bg:#17140F;--card:#221E18;--ink:#F1E9DC;--ink2:#B3A592;--line:#3A332A;--accent:#F08A62;--accent2:#7CC2AE;--ok:#7CCB97;--ng:#F2876C;--glow:#3A2E1F;--shadow:0 6px 24px rgba(0,0,0,.4)}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.7 "Noto Sans JP",system-ui,sans-serif}
 header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;padding:18px 24px 6px}
 h1{margin:0;font:700 28px/1.2 "Zen Maru Gothic",sans-serif;letter-spacing:.04em}
 h1 span{color:var(--accent)}
 .sub{color:var(--ink2);font-size:14px}
-main{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;padding:10px 24px 32px}
+main{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;padding:10px 24px 32px}
 @media (max-width:980px){main{grid-template-columns:1fr}}
 .card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}
 .ask{padding:14px 16px;display:grid;gap:10px}
@@ -26,13 +26,9 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;padding:10p
 .go{margin-left:auto;border:0;background:var(--accent);color:#fff;border-radius:999px;padding:9px 22px;font:700 15px "Zen Maru Gothic",sans-serif;cursor:pointer}
 .go:disabled{opacity:.5;cursor:wait}
 .stage{margin-top:14px;overflow:hidden}
-#pano{width:100%;aspect-ratio:16/9;background:linear-gradient(135deg,#d9cdb8,#efe5d3);display:grid;place-items:center;color:var(--ink2);font-size:14px}
-@media (prefers-color-scheme:dark){#pano{background:linear-gradient(135deg,#2b261f,#3a3329)}}
 .stopbar{display:flex;gap:6px;padding:10px 14px;overflow-x:auto;border-bottom:1px solid var(--line)}
 .stopbar button{flex:none;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:4px 12px;font:inherit;font-size:13px;cursor:pointer;white-space:nowrap}
 .stopbar button.on{background:var(--accent2);color:#fff;border-color:var(--accent2)}
-.stopbar .new{animation:pop .5s ease}
-@keyframes pop{from{transform:scale(.6);opacity:0}to{transform:none;opacity:1}}
 .info{padding:14px 18px 18px;display:grid;gap:8px}
 .info h2{margin:0;font:700 22px/1.3 "Zen Maru Gothic",sans-serif}
 .info h2 small{font:500 14px "Noto Sans JP";color:var(--ink2);margin-left:8px}
@@ -40,58 +36,88 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;padding:10p
 .phrase{display:flex;gap:10px;align-items:center;background:var(--bg);border:1px dashed var(--line);border-radius:12px;padding:8px 12px}
 .phrase b{font-size:17px}
 .say{border:0;background:var(--accent2);color:#fff;border-radius:999px;width:34px;height:34px;cursor:pointer;flex:none;font-size:16px}
-.nav{display:flex;gap:8px;justify-content:space-between;align-items:center}
+.nav{display:flex;gap:8px;justify-content:space-between;align-items:center;flex-wrap:wrap}
 .nav button{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:7px 16px;font:inherit;cursor:pointer}
 .nav button:disabled{opacity:.4}
+.tourbtn{border:0!important;background:var(--accent2)!important;color:#fff!important;font:700 14px "Zen Maru Gothic",sans-serif!important}
+.tourbtn.off{background:var(--bg)!important;color:var(--ink)!important;border:1px solid var(--line)!important}
 .welcome{padding:22px 20px;color:var(--ink2)}
 .welcome b{color:var(--ink)}
-aside{display:grid;gap:16px;align-content:start}
-.trace{padding:12px 14px;max-height:calc(100vh - 140px);overflow:auto}
-.trace h3,.mapbox h3{margin:0 0 6px;font:700 16px "Zen Maru Gothic",sans-serif}
-.trace .hint{font-size:12px;color:var(--ink2);margin:0 0 8px}
-.ev{font-size:13px;padding:6px 0;border-top:1px dashed var(--line);display:grid;grid-template-columns:22px 1fr;gap:6px;animation:fade .3s}
-@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-.ev .ic{text-align:center}
-.ev .tx{word-break:break-word}
-.ev small{display:block;color:var(--ink2);font-size:11.5px}
-.ev.think .tx{font-style:italic}
-.ev.ng .tx{color:var(--ng)} .ev.ok .tx{color:var(--ok)}
-.stats{font-size:12px;color:var(--ink2);margin-top:6px}
-.mapbox{padding:12px 14px}
-#map{width:100%;height:220px;border-radius:10px;background:var(--bg)}
-.quiz{padding:16px 18px;display:grid;gap:12px}
-.quiz h2{margin:0;font:700 20px "Zen Maru Gothic",sans-serif}
-.qq{display:grid;gap:6px}
-.qq .opts{display:grid;gap:6px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
-.qq button{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:10px;padding:8px 10px;text-align:left;font:inherit;cursor:pointer}
-.qq button.right{background:#d8efdf;border-color:var(--ok);color:#1d4d2f}
-.qq button.wrong{background:#f7dcd4;border-color:var(--ng);color:#6b2414}
-.qq .ex{font-size:13px;color:var(--ink2)}
-.spin{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp 1s linear infinite;vertical-align:-2px;margin-right:6px}
+.spin{display:inline-block;width:13px;height:13px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp 1s linear infinite;vertical-align:-2px}
 @keyframes sp{to{transform:rotate(360deg)}}
 footer{padding:0 24px 24px;font-size:12px;color:var(--ink2)}
-/* もちこ（案内役） */
-.view{position:relative}
+
+/* ストリートビューと、その上にのせるもの */
+.view{position:relative;background:#1b1814}
+#pano{width:100%;aspect-ratio:16/9;background:linear-gradient(135deg,#d9cdb8,#efe5d3);display:grid;place-items:center;color:var(--ink2);font-size:14px}
+@media (prefers-color-scheme:dark){#pano{background:linear-gradient(135deg,#2b261f,#3a3329)}}
+#still{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .6s;pointer-events:none;z-index:2}
+#still.on{opacity:1}
+.walking{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:rgba(43,38,32,.78);color:#fff;border-radius:999px;padding:6px 16px;font-size:13.5px;z-index:6;pointer-events:none;white-space:nowrap;display:flex;gap:10px;align-items:center}
+.walking .bar{width:90px;height:6px;border-radius:3px;background:rgba(255,255,255,.25);overflow:hidden}
+.walking .bar i{display:block;height:100%;background:#F2B36B;width:0}
+.plate{position:absolute;top:14px;left:14px;z-index:6;background:rgba(255,253,248,.95);color:#2B2620;border-radius:12px;padding:6px 14px;font:700 16px "Zen Maru Gothic",sans-serif;box-shadow:0 4px 14px rgba(0,0,0,.25);pointer-events:none;opacity:0;transition:opacity .5s}
+.plate.on{opacity:1}
+.plate small{display:block;font:500 11.5px "Noto Sans JP";color:#7A6E60}
+.bigbtn{position:absolute;top:12px;right:12px;z-index:6;border:0;border-radius:999px;background:rgba(43,38,32,.72);color:#fff;padding:6px 14px;font:500 13px "Noto Sans JP";cursor:pointer}
 #mochi{position:absolute;left:14px;bottom:34px;display:flex;align-items:flex-end;gap:10px;max-width:min(78%,640px);pointer-events:none;z-index:5}
 #mochi[hidden]{display:none}
 .mochi-body{pointer-events:auto;flex:none;width:84px;height:104px;border-radius:46% 46% 44% 44%;background:#fffdf8;border:3px solid #fff;box-shadow:0 4px 16px rgba(0,0,0,.28);display:grid;place-items:center;cursor:pointer;position:relative;transition:transform .2s}
 .mochi-body img{width:62px;height:auto}
-/* 話している間は、枠の色と吹き出しの印だけ変える（ストリートビューの上で動きつづけると画像が描かれなくなるため） */
+/* 話している間は、枠の色と印だけ変える（ストリートビューの上で動きつづけると画像が描かれなくなるため） */
 .mochi-body.talk{border-color:var(--accent);transform:translateY(-4px)}
-.bubble b::after{content:""}
 .mochi-body.talk + .bubble b::after{content:" 🔊 おはなし中"}
 .mochi-body .mute{position:absolute;right:-4px;bottom:-4px;width:28px;height:28px;border-radius:50%;background:var(--accent2);color:#fff;font-size:14px;display:grid;place-items:center;border:2px solid #fff}
 .bubble{pointer-events:auto;position:relative;background:rgba(255,253,248,.96);color:#2B2620;border-radius:16px;padding:10px 14px;font-size:14.5px;line-height:1.7;box-shadow:0 4px 16px rgba(0,0,0,.22);max-height:9.5em;overflow:auto;margin-bottom:22px}
 .bubble::before{content:"";position:absolute;left:-9px;bottom:16px;border:9px solid transparent;border-right-color:rgba(255,253,248,.96);border-left:0}
 .bubble b{display:block;font:700 12px "Zen Maru Gothic",sans-serif;color:#C2502E;margin-bottom:2px}
-.tourbtn{border:0;background:var(--accent2);color:#fff;border-radius:999px;padding:7px 16px;font:700 14px "Zen Maru Gothic",sans-serif;cursor:pointer}
-.tourbtn.off{background:var(--bg);color:var(--ink);border:1px solid var(--line)}
-.walking{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:rgba(43,38,32,.72);color:#fff;border-radius:999px;padding:5px 14px;font-size:13px;z-index:5;pointer-events:none}
 @media (max-width:640px){.mochi-body{width:62px;height:78px}.mochi-body img{width:46px}.bubble{font-size:13px;max-height:7.5em}}
+
+/* 大きな画面で歩く */
+body.big{overflow:hidden}
+body.big .stage{position:fixed;inset:0;z-index:50;margin:0;border-radius:0;border:0}
+body.big .stopbar,body.big #info{display:none}
+body.big #pano{aspect-ratio:auto;height:100vh}
+body.big .bubble{font-size:16.5px;max-height:8.5em}
+body.big .mochi-body{width:104px;height:128px}
+body.big .mochi-body img{width:78px}
+#map.mini{position:absolute;right:14px;bottom:34px;width:260px;height:190px;z-index:6;border:3px solid #fff;box-shadow:0 4px 16px rgba(0,0,0,.3)}
+
+/* 地図 */
+aside{display:grid;gap:16px;align-content:start}
+.mapbox{padding:12px 14px}
+.mapbox h3,.trace h3{margin:0 0 6px;font:700 16px "Zen Maru Gothic",sans-serif}
+#map{width:100%;height:220px;border-radius:10px;background:var(--bg)}
+
+/* エージェントの足あと */
+.trace{padding:12px 14px;max-height:calc(100vh - 120px);overflow:auto}
+.trace .hint{font-size:12px;color:var(--ink2);margin:0 0 10px}
+.now{display:flex;gap:8px;align-items:flex-start;background:var(--bg);border-radius:12px;padding:8px 10px;font-size:13px;margin-bottom:10px}
+.now .who{flex:none;width:26px;height:26px;border-radius:50%;background:var(--accent2);color:#fff;display:grid;place-items:center;font-size:14px}
+.now.done .who{background:var(--ok)}
+.now.ng .who{background:var(--ng)}
+.sc{position:relative;border:1px solid var(--line);border-radius:14px;padding:9px 11px 9px 44px;margin:0 0 10px;background:var(--card);cursor:pointer;transition:background .3s,border-color .3s}
+.sc:hover{border-color:var(--accent2)}
+.sc .num{position:absolute;left:10px;top:9px;width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font:700 13px "Zen Maru Gothic",sans-serif}
+.sc.work{border-style:dashed;cursor:default}
+.sc.work .num{background:var(--line);color:var(--ink2)}
+.sc h4{margin:0;font:700 15px/1.4 "Zen Maru Gothic",sans-serif}
+.sc .tag{display:inline-block;font:500 11.5px "Noto Sans JP";border-radius:999px;padding:1px 8px;margin-left:6px;vertical-align:1px}
+.sc.on{background:var(--glow);border-color:var(--accent)}
+.sc .tag.talk{background:var(--accent);color:#fff}
+.sc .tag.walk{background:var(--accent2);color:#fff}
+.steps{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.st{font-size:11.5px;border-radius:8px;padding:1px 7px;background:var(--bg);color:var(--ink2);border:1px solid var(--line);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.st.ok{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 40%,transparent)}
+.st.ng{color:var(--ng);border-color:color-mix(in srgb,var(--ng) 40%,transparent)}
+.why{font-size:12px;color:var(--ink2);margin-top:5px;font-style:italic}
+.quote{font-size:12.5px;margin-top:6px;padding:5px 9px;border-radius:10px;background:var(--bg);display:flex;gap:6px;align-items:flex-start}
+.quote img{width:16px;flex:none;margin-top:3px}
+.stats{font-size:12px;color:var(--ink2);margin-top:4px}
 </style>
 </head>
 <body>
-<header><h1>まち<span>まど</span></h1><div class="sub">AIエージェントが「本当に歩ける」海外の散歩道を組み立てて、ストリートビューで案内します</div></header>
+<header><h1>まち<span>まど</span></h1><div class="sub">AIエージェントが「本当に歩ける」海外の散歩道を組み立てて、もちこがストリートビューで案内します</div></header>
 <main>
   <section>
     <div class="card ask">
@@ -108,73 +134,127 @@ footer{padding:0 24px 24px;font-size:12px;color:var(--ink2)}
     </div>
     <div class="card stage" id="stage">
       <div class="stopbar" id="stopbar" hidden></div>
-      <div class="view">
+      <div class="view" id="view">
         <div id="pano">行き先を入れて「出発する」を押してください</div>
+        <img id="still" alt="">
+        <div class="plate" id="plate"></div>
         <div class="walking" id="walking" hidden></div>
+        <button class="bigbtn" id="bigBtn" hidden>⛶ 大きな画面で歩く</button>
         <div id="mochi" hidden>
-          <div class="mochi-body" id="mochiBody" title="もちこ（押すと、もう一度話す／長押しで声を消す）"><img src="/static/mochiko.png" alt="もちこ"><span class="mute" id="mochiMute">🔊</span></div>
+          <div class="mochi-body" id="mochiBody" title="もちこ（押すと、もう一度話す）"><img src="/static/mochiko.png" alt="もちこ"><span class="mute" id="mochiMute" title="声を消す／出す">🔊</span></div>
           <div class="bubble" id="bubble"><b>もちこ</b><span id="bubbleText"></span></div>
         </div>
       </div>
       <div id="info" class="welcome">
-        <b>しくみ</b>：エージェントは、①行き先を考え、②実在の場所を探し、③その地点にストリートビューがあるかを確かめ、なければ自分で別の地点に差しかえ、④Wikipediaで事実を調べて解説を書きます。右の「足あと」で、考えて動いている様子が見えます。
+        <b>しくみ</b>：エージェントは、①行き先を考え、②実在の場所を探し、③その地点を通りから見られるか確かめ、だめなら自分で別の地点に差しかえ、④Wikipediaで事実を調べて、もちこの解説を書きます。1か所目が決まると、もちこが案内を始めて、次の場所まで通りを歩いていきます。
       </div>
     </div>
-    <div class="card quiz" id="quiz" hidden></div>
   </section>
   <aside>
     <div class="card mapbox"><h3>散歩の地図</h3><div id="map"></div></div>
-    <div class="card trace"><h3>エージェントの足あと</h3><p class="hint">考えたこと・使った道具・判断の結果</p><div id="trace"></div><div class="stats" id="stats"></div></div>
+    <div class="card trace" id="tracebox">
+      <h3>エージェントの足あと</h3>
+      <p class="hint">AIが、どう考えて、何を確かめて、立ち寄り先を決めたか。もちこが案内している場所が光ります。</p>
+      <div class="now" id="agentNow"><span class="who">🤖</span><span id="agentNowText">行き先を入れると、ここでエージェントの動きが見えます。</span></div>
+      <div id="cards"></div>
+      <div class="stats" id="stats"></div>
+    </div>
   </aside>
 </main>
 <footer>画像：Google ストリートビュー／解説の出典：Wikipedia（各地点にリンク）。AIの解説にはまちがいが含まれることがあります。</footer>
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-let walk = {stops: []}, cur = -1, pano = null, map = null, markers = [], line = null, mapsReady = null;
+const cut = (s, n) => { s = String(s ?? ""); return s.length > n ? s.slice(0, n) + "…" : s; };
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+let walk = {stops: []}, cur = -1, pano = null, map = null, markers = [], line = null, trail = null, mapsReady = null, mapsKey = "";
 
 // ---- 地図の読みこみ ----
 async function loadMaps(){
   if (mapsReady) return mapsReady;
   mapsReady = (async () => {
-    const {mapsKey} = await (await fetch("/api/config")).json();
+    mapsKey = (await (await fetch("/api/config")).json()).mapsKey;
     await new Promise((ok, ng) => { const s = document.createElement("script"); s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(mapsKey)}&v=weekly&language=ja&callback=__mapsOk`; window.__mapsOk = ok; s.onerror = ng; document.head.appendChild(s); });
     map = new google.maps.Map($("#map"), {center: {lat: 48.8566, lng: 2.3522}, zoom: 13, disableDefaultUI: true, gestureHandling: "cooperative"});
   })();
   return mapsReady;
 }
 
-// ---- 足あと ----
-const ICON = {search_places: "🔎", check_street_view: "📷", wikipedia: "📚", add_stop: "📍", finish_walk: "🏁"};
-const LABEL = {search_places: "場所をさがす", check_street_view: "ストリートビューを確かめる", wikipedia: "Wikipediaで調べる", add_stop: "立ち寄り先に決定", finish_walk: "散歩を完成"};
-function addTrace(cls, icon, html){ const d = document.createElement("div"); d.className = "ev " + cls; d.innerHTML = `<span class="ic">${icon}</span><span class="tx">${html}</span>`; $("#trace").appendChild(d); const t = $("#trace").parentElement; t.scrollTop = t.scrollHeight; return d; }
-function argText(name, a){
-  if (name === "search_places") return esc(a.query);
-  if (name === "check_street_view") return `${(+a.lat).toFixed(4)}, ${(+a.lng).toFixed(4)}（半径${a.radius_m || 50}m）`;
-  if (name === "wikipedia") return `${esc(a.title)}（${esc(a.lang || "ja")}）`;
-  if (name === "add_stop") return esc(a.name);
-  if (name === "finish_walk") return esc(a.title);
-  return "";
+// ================= エージェントの足あと（立ち寄り先ごとのカード） =================
+const NOW = {   // [足あとに出す文, もちこが言う文]
+  search_places: a => [`「${cut(a.query, 30)}」をさがしています`, `いま「${cut(a.query, 24)}」をさがしているよ`],
+  check_street_view: () => ["その場所を、通りから見られるか確かめています", "通りから見られるか、確かめているよ"],
+  wikipedia: a => [`Wikipediaで「${cut(a.title, 24)}」を調べています`, `「${cut(a.title, 20)}」のこと、調べているよ`],
+  add_stop: a => [`「${cut(a.name, 24)}」を立ち寄り先に決めました`, `「${cut(a.name, 20)}」に決めたよ！`],
+  finish_walk: () => ["散歩道を仕上げています", "もうすぐ散歩道ができあがるよ"],
+};
+let work = null;   // いま準備中のカード
+function setNow(text, cls){ $("#agentNow").className = "now " + (cls || ""); $("#agentNowText").innerHTML = text; }
+function newWork(){
+  work = document.createElement("div"); work.className = "sc work";
+  work.innerHTML = `<span class="num">${walk.stops.length + 1}</span><h4><span class="spin"></span> 次の立ち寄り先を考えています</h4><div class="steps"></div><div class="why" hidden></div>`;
+  $("#cards").appendChild(work); scrollTrace(work); return work;
+}
+function addStep(text, cls, title){
+  if (!work) newWork();
+  const s = document.createElement("span"); s.className = "st " + (cls || ""); s.textContent = text; if (title) s.title = title;
+  work.querySelector(".steps").appendChild(s); return s;
+}
+function scrollTrace(el){ const box = $("#tracebox"), top = el.offsetTop - box.offsetTop - 60; box.scrollTo({top: Math.max(0, top), behavior: "smooth"}); }
+function finishCard(stop, i){
+  const c = work || newWork(); work = null;
+  c.className = "sc"; c.dataset.i = i;
+  c.querySelector(".num").textContent = i + 1;
+  c.querySelector("h4").innerHTML = `${esc(stop.name)}<span class="tag" hidden></span>`;
+  c.insertAdjacentHTML("beforeend", `<div class="quote"><img src="/static/mochiko.png" alt="">${esc(cut(stop.narration, 54))}</div>`);
+}
+function markCards(){
+  document.querySelectorAll(".sc[data-i]").forEach(c => {
+    const i = +c.dataset.i, tag = c.querySelector(".tag");
+    const on = i === tour.at || i === tour.to;
+    c.classList.toggle("on", on);
+    tag.hidden = !on;
+    if (i === tour.to) { tag.className = "tag walk"; tag.textContent = "🚶 向かっています"; }
+    else if (i === tour.at) { tag.className = "tag talk"; tag.textContent = "🗣 もちこが案内中"; }
+  });
+  const c = document.querySelector(`.sc[data-i="${tour.to >= 0 ? tour.to : tour.at}"]`); if (c) scrollTrace(c);
 }
 
-// ---- 散歩を見せる ----
+// ================= 散歩を見せる =================
 function renderBar(){
   const bar = $("#stopbar"); bar.hidden = !walk.stops.length;
-  bar.innerHTML = walk.stops.map((s, i) => `<button data-i="${i}" class="${i === cur ? "on" : ""}${i === walk.stops.length - 1 && !walk.done ? " new" : ""}">${i + 1}. ${esc(s.name)}</button>`).join("");
+  bar.innerHTML = walk.stops.map((s, i) => `<button data-i="${i}" class="${i === cur ? "on" : ""}">${i + 1}. ${esc(s.name)}</button>`).join("");
 }
 function drawRoute(){
   if (!map) return;
   markers.forEach(m => m.setMap(null)); markers = [];
   const path = walk.stops.map(s => ({lat: s.lat, lng: s.lng}));
-  walk.stops.forEach((s, i) => { const m = new google.maps.Marker({position: path[i], map, label: String(i + 1)}); m.addListener("click", () => show(i)); markers.push(m); });
+  walk.stops.forEach((s, i) => { const m = new google.maps.Marker({position: path[i], map, label: String(i + 1)}); m.addListener("click", () => goTo(i)); markers.push(m); });
   if (line) line.setMap(null);
-  line = new google.maps.Polyline({path, map, strokeColor: "#C2502E", strokeOpacity: .8, strokeWeight: 3});
-  if (path.length) { const b = new google.maps.LatLngBounds(); path.forEach(p => b.extend(p)); map.fitBounds(b, 30); if (path.length === 1) map.setZoom(15); }
+  line = new google.maps.Polyline({path, map, strokeColor: "#C2502E", strokeOpacity: .35, strokeWeight: 3, icons: [{icon: {path: "M 0,-1 0,1", strokeOpacity: 1, scale: 3}, offset: "0", repeat: "12px"}]});
+  if (path.length && !tour.driving) { const b = new google.maps.LatLngBounds(); path.forEach(p => b.extend(p)); map.fitBounds(b, 30); if (path.length === 1) map.setZoom(16); }
 }
-function show(i, quiet){
-  const s = walk.stops[i]; if (!s) return; cur = i;
-  if (!pano) { $("#pano").innerHTML = ""; pano = new google.maps.StreetViewPanorama($("#pano"), {pano: s.pano_id, pov: {heading: s.heading || 0, pitch: 0}, zoom: 0, addressControl: false, fullscreenControl: true, motionTracking: false}); }
-  else { pano.setPano(s.pano_id); pano.setPov({heading: s.heading || 0, pitch: 0, zoom: 0}); }
+function stillUrl(id, heading){ return `https://maps.googleapis.com/maps/api/streetview?size=640x360&scale=2&pano=${encodeURIComponent(id)}&heading=${Math.round(heading || 0)}&pitch=0&fov=90&key=${encodeURIComponent(mapsKey)}`; }
+// 地点の画像を出す。まず静止画（すぐ出る）を重ね、ストリートビューが読みこまれたら外す。読みこめたら true
+function setView(s){
+  const pov = {heading: s.heading || 0, pitch: 0, zoom: 1};
+  if (!pano) { $("#pano").innerHTML = ""; pano = new google.maps.StreetViewPanorama($("#pano"), {pano: s.pano_id, pov, zoom: 1, addressControl: false, fullscreenControl: false, motionTracking: false, linksControl: true});
+    pano.addListener("pano_changed", () => {}); $("#pano").addEventListener("pointerdown", hideStill); }
+  else { pano.setPano(s.pano_id); pano.setPov(pov); }
+  const img = $("#still");
+  return new Promise(res => {
+    let t = setTimeout(() => res(false), 9000);
+    img.onload = () => { clearTimeout(t); img.classList.add("on"); res(true); };
+    img.onerror = () => { clearTimeout(t); res(false); };
+    const url = stillUrl(s.pano_id, s.heading);
+    if (img.src === url && img.complete && img.naturalWidth) { clearTimeout(t); img.classList.add("on"); res(true); return; }
+    img.src = url;
+  });
+}
+function hideStill(){ $("#still").classList.remove("on"); }
+function plate(s, i){ const p = $("#plate"); p.innerHTML = `📍 ${i + 1}. ${esc(s.name)}${s.local_name ? `<small>${esc(s.local_name)}</small>` : ""}`; p.classList.add("on"); clearTimeout(plate.t); plate.t = setTimeout(() => p.classList.remove("on"), 5000); }
+function renderInfo(i){
+  const s = walk.stops[i]; if (!s) return;
   const lang = guessLang(s.phrase);
   $("#info").className = "info";
   $("#info").innerHTML = `<h2>${esc(s.name)}${s.local_name ? `<small>${esc(s.local_name)}</small>` : ""}</h2>
@@ -182,17 +262,22 @@ function show(i, quiet){
     <p style="margin:0">${esc(s.narration)}</p>
     ${s.phrase ? `<div class="phrase"><button class="say" data-say="${esc(s.phrase)}" data-lang="${lang}" title="読み上げ">🔊</button><div><b>${esc(s.phrase)}</b><br><small>${esc(s.phrase_reading || "")}　${esc(s.phrase_meaning || "")}</small></div></div>` : ""}
     <div class="nav"><button data-nav="-1" ${i ? "" : "disabled"}>‹ 前へ</button><button class="tourbtn ${tour.on ? "" : "off"}" id="tourBtn">${tour.on ? "⏸ 自動案内を止める" : "▶ もちこと自動で歩く"}</button><span class="meta">${i + 1} / ${walk.stops.length}</span><button data-nav="1" ${i < walk.stops.length - 1 ? "" : "disabled"}>次へ ›</button></div>`;
-  renderBar();
-  if (map && markers[i]) map.panTo(markers[i].getPosition());
-  if (!quiet && !tour.on) mochiSay(s.narration);
-  if (tour.on && !quiet && !tour.driving) tourFrom(i);   // 地点を押したら、そこから自動案内をやり直す
-  const nx = walk.stops[i + 1]; if (nx && !muted) fetchVoice(nx.narration, "ja-JP");   // 次の地点の声を先に用意
 }
+// 手で地点を見る（自動案内オフのとき）
+async function show(i){
+  const s = walk.stops[i]; if (!s) return; cur = i; tour.at = i; tour.to = -1;
+  renderInfo(i); renderBar(); markCards(); plate(s, i); walkerAt(s);
+  if (map) map.panTo({lat: s.lat, lng: s.lng});
+  await setView(s); setTimeout(hideStill, 2500);
+  mochiSay(s.narration);
+}
+function goTo(i){ if (tour.on) tourFrom(i); else { tourStop(); show(i); } }
 function guessLang(t){ t = t || ""; if (/[àâçéèêëîïôûùüÿœ]/i.test(t)) return "fr-FR"; if (/[¿¡ñ]/.test(t)) return "es-ES"; if (/[äöüß]/i.test(t)) return "de-DE"; if (/[一-鿿]/.test(t)) return "zh-TW"; if (/[àèìòù]/i.test(t)) return "it-IT"; return "en-US"; }
-// ---- もちこの声（Gemini の音声生成。だめならブラウザの声） ----
-const voiceCache = new Map();   // 文 -> Promise<blob URL | null>
+
+// ================= もちこの声（Gemini の音声生成。だめならブラウザの声） =================
+const voiceCache = new Map();
 let audio = null, muted = false, sayToken = 0, sayDone = null;
-function fetchVoice(text, lang){
+function fetchVoice(text, lang = "ja-JP"){
   const k = lang + "|" + text;
   if (!voiceCache.has(k)) voiceCache.set(k, fetch("/api/voice", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({text, lang})})
     .then(r => r.ok ? r.blob() : null).then(b => b ? URL.createObjectURL(b) : null).catch(() => null));
@@ -200,118 +285,170 @@ function fetchVoice(text, lang){
 }
 function stopVoice(){ sayToken++; try { audio && audio.pause(); } catch {} try { speechSynthesis.cancel(); } catch {} talking(false); if (sayDone) { const f = sayDone; sayDone = null; f(); } }
 function talking(on){ $("#mochiBody").classList.toggle("talk", !!on); }
-// 話しおわるまで待てる Promise を返す（自動案内で使う）
-function speak(text, lang){
+function speak(text, lang){   // 話しおわるまで待てる
   if (!text) return Promise.resolve();
   stopVoice(); const my = sayToken;
   return new Promise(async done => {
     sayDone = done;
     const fin = () => { if (my === sayToken) { talking(false); if (sayDone === done) sayDone = null; done(); } };
-    if (muted) { setTimeout(fin, Math.min(14000, 1500 + text.length * 110)); return; }   // 声なしでも読む時間だけ待つ
+    if (muted) { setTimeout(fin, Math.min(14000, 1500 + text.length * 110)); return; }
     talking(true);
     const url = await fetchVoice(text, lang);
     if (my !== sayToken) return;
-    if (url) {
-      audio = new Audio(url); audio.onended = fin; audio.onerror = fin;
-      try { await audio.play(); return; } catch { /* 自動再生が止められたら下へ */ }
-    }
-    try {   // 予備：ブラウザの声（もちこらしく少し高め）
-      const u = new SpeechSynthesisUtterance(text); u.lang = lang; u.rate = lang === "ja-JP" ? 1.05 : .95; u.pitch = lang === "ja-JP" ? 1.5 : 1.1;
-      u.onend = fin; u.onerror = fin; speechSynthesis.speak(u);
-    } catch { fin(); }
+    if (url) { audio = new Audio(url); audio.onended = fin; audio.onerror = fin; try { await audio.play(); return; } catch {} }
+    try { const u = new SpeechSynthesisUtterance(text); u.lang = lang; u.rate = lang === "ja-JP" ? 1.05 : .95; u.pitch = lang === "ja-JP" ? 1.5 : 1.1; u.onend = fin; u.onerror = fin; speechSynthesis.speak(u); } catch { fin(); }
   });
 }
-function mochiSay(text){ if (!text) return Promise.resolve(); $("#mochi").hidden = false; $("#bubbleText").textContent = text; $("#bubble").scrollTop = 0; return speak(text, "ja-JP"); }
-$("#mochiBody").addEventListener("click", () => { if (muted) { muted = false; $("#mochiMute").textContent = "🔊"; } if (tour.driving && cur >= 0) tourFrom(cur); else mochiSay($("#bubbleText").textContent); });
+function bubble(text){ $("#mochi").hidden = false; $("#bubbleText").textContent = text; $("#bubble").scrollTop = 0; }
+function mochiSay(text){ if (!text) return Promise.resolve(); bubble(text); return speak(text, "ja-JP"); }
+$("#mochiBody").addEventListener("click", () => { if (muted) { muted = false; $("#mochiMute").textContent = "🔊"; } if (tour.driving && tour.at >= 0 && tour.to < 0) tourFrom(tour.at); else mochiSay($("#bubbleText").textContent); });
 $("#mochiMute").addEventListener("click", e => { e.stopPropagation(); muted = !muted; $("#mochiMute").textContent = muted ? "🔇" : "🔊";
-  if (tour.driving && cur >= 0) tourFrom(cur); else if (muted) stopVoice(); else mochiSay($("#bubbleText").textContent); });
-// ---- 自動案内：もちこが話しながら見まわし、終わったら次の地点まで歩いていく ----
-const tour = {on: true, token: 0, driving: false, spin: null, anim: null};
-const BYE = "おつかれさま！これで散歩はおしまいだよ。下のクイズにも挑戦してみてね。";
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+  if (!muted) return;
+  if (tour.driving && tour.at >= 0 && tour.to < 0 && $("#mochiBody").classList.contains("talk")) tourFrom(tour.at);   // 声なしで読みなおす（読む時間だけ待つ）
+  else { try { audio && audio.pause(); speechSynthesis.cancel(); } catch {} talking(false); } });
+
+// 足音（小さな「とっ」という音）
+let ac = null;
+function step(){
+  if (muted) return;
+  try { ac = ac || new AudioContext(); const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime;
+    o.type = "sine"; o.frequency.setValueAtTime(190, t); o.frequency.exponentialRampToValueAtTime(90, t + .08);
+    g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.09, t + .01); g.gain.exponentialRampToValueAtTime(.0001, t + .12);
+    o.connect(g).connect(ac.destination); o.start(t); o.stop(t + .14); } catch {}
+}
+
+// ================= 自動案内：話す → 見まわす → 通りを歩いて次へ =================
+const tour = {on: true, token: 0, driving: false, spin: null, anim: null, at: -1, to: -1};
+const LOADING = "いま景色を読み込んでいるよ。ちょっと待ってね。";
+const BYE = "おつかれさま！これで散歩はおしまいだよ。また一緒に歩こうね。";
 function bearing(a, b){ const r = Math.PI / 180, y = Math.sin((b.lng - a.lng) * r) * Math.cos(b.lat * r), x = Math.cos(a.lat * r) * Math.sin(b.lat * r) - Math.sin(a.lat * r) * Math.cos(b.lat * r) * Math.cos((b.lng - a.lng) * r); return (Math.atan2(y, x) / r + 360) % 360; }
+function distM(a, b){ const r = Math.PI / 180, x = (b.lng - a.lng) * r * Math.cos((a.lat + b.lat) / 2 * r), y = (b.lat - a.lat) * r; return Math.sqrt(x * x + y * y) * 6371000; }
+function angDiff(a, b){ return Math.abs(((a - b + 540) % 360) - 180); }
 function lookAround(on){
-  // 少し待って画像が読みこまれてから、「ふり向いて、止まって眺める」をくり返す（回しつづけると画像が読みこめないため）
   clearTimeout(tour.spin); clearInterval(tour.anim); tour.spin = null;
   if (!on || !pano) return;
-  const turn = () => {
-    const from = pano.getPov().heading, to = from + 50; let k = 0;
+  const turn = () => {   // ふり向いて、止まって眺める（回しつづけると画像が読みこめない）
+    hideStill();
+    const from = pano.getPov().heading, to = from + 40; let k = 0;
     tour.anim = setInterval(() => { k++; const t = k / 24, e = t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-      pano.setPov({heading: (from + (to - from) * e) % 360, pitch: 0, zoom: 0}); if (k >= 24) clearInterval(tour.anim); }, 60);
-    tour.spin = setTimeout(turn, 6000);
+      pano.setPov({heading: (from + (to - from) * e) % 360, pitch: 0, zoom: 1}); if (k >= 24) clearInterval(tour.anim); }, 60);
+    tour.spin = setTimeout(turn, 7000);
   };
-  tour.spin = setTimeout(turn, 3500);
+  tour.spin = setTimeout(turn, 5000);
 }
 let walker = null;
 function walkerAt(pos){
   if (!map) return;
   if (!walker) walker = new google.maps.Marker({map, zIndex: 999, icon: {url: "/static/mochiko.png", scaledSize: new google.maps.Size(26, 32), anchor: new google.maps.Point(13, 30)}});
-  walker.setPosition(pos);
+  walker.setPosition({lat: pos.lat, lng: pos.lng});
 }
-function findPano(loc, radius){
-  return new Promise(res => { try { new google.maps.StreetViewService().getPanorama({location: loc, radius, source: google.maps.StreetViewSource.OUTDOOR, preference: google.maps.StreetViewPreference.NEAREST}, (d, st) => res(st === "OK" ? d : null)); } catch { res(null); } });
+function svGet(req){ return new Promise(res => { try { new google.maps.StreetViewService().getPanorama(req, (d, st) => res(st === "OK" ? d : null)); } catch { res(null); } }); }
+function walkBadge(b, rem, total){
+  const w = $("#walking"); w.hidden = false;
+  const pct = total ? Math.max(0, Math.min(100, 100 - rem / total * 100)) : 0;
+  w.innerHTML = `🚶 ${esc(cut(b.name, 16))} へ <span class="bar"><i style="width:${pct}%"></i></span> あと${Math.max(0, Math.round(rem))}m`;
 }
 async function walkTo(a, b, my){
-  // 2地点のあいだを、近くのストリートビューを順につないで歩く
-  const n = Math.max(2, Math.min(7, Math.round((b.from_prev_m || 400) / 110)));
-  const head = bearing(a, b), seen = new Set([a.pano_id]);
-  $("#walking").hidden = false; $("#walking").textContent = `🚶 ${b.name} へ歩いています…`;
+  // 道の写真のつながり（リンク）をたどって、本当に通りを歩いていく
+  tour.to = walk.stops.indexOf(b); tour.at = -1; markCards();
+  hideStill();
+  let pos = {lat: a.lat, lng: a.lng}, id = a.pano_id;
+  const total = distM(pos, b), seen = new Set([id]);
+  const STEPS = 18, path = [pos];
+  if (!trail) trail = new google.maps.Polyline({map, strokeColor: "#2F6B5E", strokeOpacity: .9, strokeWeight: 4});
+  trail.setPath(path);
   mochiSay(`次は${b.name}だよ。いっしょに歩こう！`);
-  for (let k = 1; k < n; k++) {
+  walkBadge(b, total, total);
+  for (let k = 0; k < STEPS; k++) {
     if (my !== tour.token) return false;
-    const t = k / n, loc = {lat: a.lat + (b.lat - a.lat) * t, lng: a.lng + (b.lng - a.lng) * t};
-    walkerAt(loc);
-    const d = await findPano(loc, 80);
+    const rem = distM(pos, b); if (rem < 30) break;
+    const want = bearing(pos, b), left = STEPS - k;
+    let next = null;
+    if (rem / left <= 22) {   // 近いときは、となりの写真へ1歩ずつ
+      const d = await svGet({pano: id});
+      const links = (d && d.links || []).filter(l => l.pano && !seen.has(l.pano));
+      links.sort((x, y) => angDiff(x.heading, want) - angDiff(y.heading, want));
+      if (links[0] && angDiff(links[0].heading, want) < 75) { const n = await svGet({pano: links[0].pano}); if (n) next = n; }
+    }
+    if (!next) {   // 遠いときや道がつながらないときは、進む方向の先の写真へ大またで
+      const stepM = Math.min(rem - 10, Math.max(25, rem / left)), r = stepM / 6371000, br = want * Math.PI / 180, la = pos.lat * Math.PI / 180;
+      const loc = {lat: pos.lat + (r * Math.cos(br)) * 180 / Math.PI, lng: pos.lng + (r * Math.sin(br) / Math.cos(la)) * 180 / Math.PI};
+      next = await svGet({location: loc, radius: 50, source: google.maps.StreetViewSource.OUTDOOR, preference: google.maps.StreetViewPreference.NEAREST});
+      if (next && seen.has(next.location.pano)) next = null;
+    }
     if (my !== tour.token) return false;
-    if (d && !seen.has(d.location.pano)) { seen.add(d.location.pano); pano.setPano(d.location.pano); pano.setPov({heading: head, pitch: 0, zoom: 0}); }
-    await sleep(1600);
+    if (!next) break;
+    const np = {lat: next.location.latLng.lat(), lng: next.location.latLng.lng()};
+    const head = bearing(pos, np);
+    id = next.location.pano; seen.add(id); pos = np; path.push(np);
+    pano.setPano(id); pano.setPov({heading: head, pitch: 0, zoom: 1}); step();
+    walkerAt(pos); trail.setPath(path); if (map) map.panTo(pos);
+    walkBadge(b, distM(pos, b), total);
+    await sleep(1000);
   }
-  $("#walking").hidden = true;
+  $("#walking").hidden = true; tour.to = -1;
+  return my === tour.token;
+}
+async function arrive(i, my){
+  const s = walk.stops[i];
+  cur = i; tour.at = i; tour.to = -1;
+  renderInfo(i); renderBar(); markCards(); plate(s, i); walkerAt(s);
+  if (map) map.panTo({lat: s.lat, lng: s.lng});
+  // 景色が出るまで、もちこは話すのを待つ
+  const ready = setView(s);
+  const fast = await Promise.race([ready, sleep(1300).then(() => "slow")]);
+  if (fast === "slow") { await mochiSay(LOADING); await ready; }
+  if (my !== tour.token) return false;
+  await sleep(600);
   return my === tour.token;
 }
 async function tourFrom(i){
-  const my = ++tour.token; tour.driving = true;
+  const my = ++tour.token; tour.driving = true; fetchVoice(LOADING);
   try {
     for (;;) {
       if (my !== tour.token) return;
       const s = walk.stops[i]; if (!s) return;
-      show(i, true); walkerAt({lat: s.lat, lng: s.lng});
+      if (!(await arrive(i, my))) return;
       lookAround(true);
       const said = mochiSay(s.narration);
-      const nx = walk.stops[i + 1]; if (nx && !muted) fetchVoice(`次は${nx.name}だよ。いっしょに歩こう！`, "ja-JP");   // 歩きはじめの声も先に用意
-      else if (walk.done && !muted) fetchVoice(BYE, "ja-JP");
+      const nx = walk.stops[i + 1]; if (nx) fetchVoice(`次は${nx.name}だよ。いっしょに歩こう！`); else if (walk.done) fetchVoice(BYE);
+      if (nx) fetchVoice(nx.narration);
       await said;
       lookAround(false);
       if (my !== tour.token) return;
       await sleep(1200);
-      while (!walk.stops[i + 1] && !walk.done && my === tour.token) await sleep(800);   // まだエージェントが探している
+      if (!walk.stops[i + 1] && !walk.done) { bubble("次の場所は、いまエージェントがさがしているよ。ちょっと待ってね。"); }
+      while (!walk.stops[i + 1] && !walk.done && my === tour.token) await sleep(800);
       if (my !== tour.token) return;
-      if (!walk.stops[i + 1]) {
-        $("#walking").hidden = true;
-        await mochiSay(BYE);
-        if (my === tour.token && !$("#quiz").hidden) $("#quiz").scrollIntoView({behavior: "smooth"});
-        return;
-      }
+      if (!walk.stops[i + 1]) { tour.at = -1; markCards(); await mochiSay(BYE); return; }
       if (!(await walkTo(s, walk.stops[i + 1], my))) return;
       i++;
     }
   } finally { if (my === tour.token) { tour.driving = false; lookAround(false); } }
 }
-function tourStop(){ tour.token++; tour.driving = false; lookAround(false); $("#walking").hidden = true; stopVoice(); }
+function tourStop(){ tour.token++; tour.driving = false; tour.to = -1; lookAround(false); $("#walking").hidden = true; stopVoice(); }
 
-function renderQuiz(){
-  const qz = walk.quiz || []; if (!qz.length) return;
-  const el = $("#quiz"); el.hidden = false;
-  el.innerHTML = `<h2>🎓 散歩のふりかえりクイズ</h2>` + qz.map((q, i) => `<div class="qq" data-q="${i}"><b>Q${i + 1}. ${esc(q.q)}</b><div class="opts">${q.choices.map((c, j) => `<button data-a="${j}">${esc(c)}</button>`).join("")}</div><div class="ex" hidden>${esc(q.explain || "")}</div></div>`).join("");
+// ================= 大きな画面で歩く =================
+function setBig(on){
+  document.body.classList.toggle("big", on);
+  $("#bigBtn").textContent = on ? "✕ もとの画面にもどる" : "⛶ 大きな画面で歩く";
+  const m = $("#map");
+  if (on) { $("#view").appendChild(m); m.classList.add("mini"); } else { $(".mapbox").appendChild(m); m.classList.remove("mini"); }
+  setTimeout(() => { try { google.maps.event.trigger(pano, "resize"); } catch {} if (walker && map) map.panTo(walker.getPosition()); }, 300);
 }
+$("#bigBtn").onclick = () => setBig(!document.body.classList.contains("big"));
+document.addEventListener("keydown", e => { if (e.key === "Escape" && document.body.classList.contains("big")) setBig(false); });
 
-// ---- 出発 ----
+// ================= 出発 =================
 async function go(){
   const text = $("#req").value.trim(); if (!text) { $("#req").focus(); return; }
-  $("#go").disabled = true; $("#trace").innerHTML = ""; $("#stats").textContent = ""; $("#quiz").hidden = true;
-  walk = {stops: []}; cur = -1; renderBar(); tourStop();
+  $("#go").disabled = true; $("#cards").innerHTML = ""; $("#stats").textContent = ""; work = null;
+  walk = {stops: []}; cur = -1; tour.at = -1; renderBar(); tourStop();
+  if (trail) trail.setPath([]);
   mochiSay("もちこだよ。いっしょに歩く道を、いま探してるね。ちょっと待っててね！");
-  $("#info").className = "welcome"; $("#info").innerHTML = `<span class="spin"></span>エージェントが散歩道を組み立てています…（右の「足あと」で様子が見えます）`;
+  setNow(`<span class="spin"></span> 散歩の計画を立てています`);
+  $("#info").className = "welcome"; $("#info").innerHTML = `<span class="spin"></span> エージェントが散歩道を組み立てています。1か所目が決まったら、もちこが案内を始めます。`;
+  $("#bigBtn").hidden = false;
   const mapsP = loadMaps().catch(() => null);
   let res;
   try { res = await fetch("/api/walk", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({request: text})}); }
@@ -322,43 +459,70 @@ async function go(){
   for (;;) {
     const {value, done} = await rd.read(); if (done) break;
     buf += dec.decode(value, {stream: true});
-    let n; while ((n = buf.indexOf("\n")) >= 0) { const line = buf.slice(0, n); buf = buf.slice(n + 1); if (line.trim()) onEvent(JSON.parse(line)); }
+    let n; while ((n = buf.indexOf("\n")) >= 0) { const l = buf.slice(0, n); buf = buf.slice(n + 1); if (l.trim()) onEvent(JSON.parse(l)); }
   }
   $("#go").disabled = false;
 }
-let pendingTool = null;
+let lastTool = null, lastStep = null;
 function onEvent(ev){
-  if (ev.type === "start") addTrace("", "🚶", `出発の準備（${esc(ev.model)}）<small>trace ${esc(ev.trace_id)}</small>`);
-  else if (ev.type === "think") addTrace("think", "💭", esc(ev.text));
-  else if (ev.type === "note") addTrace("", "ℹ️", esc(ev.text));
-  else if (ev.type === "tool") pendingTool = addTrace("", ICON[ev.name] || "🔧", `${LABEL[ev.name] || ev.name}：${argText(ev.name, ev.args)}`);
+  if (ev.type === "start") setNow(`<span class="spin"></span> 散歩の計画を立てています <small class="meta">（${esc(ev.model)}）</small>`);
+  else if (ev.type === "think") {
+    if (!work) newWork();
+    const w = work.querySelector(".why"); w.hidden = false; w.textContent = "💭 " + ev.text.replace(/^メモ[:：]\s*/, "");
+  }
+  else if (ev.type === "note") setNow(esc(ev.text));
+  else if (ev.type === "tool") {
+    lastTool = ev; const f = NOW[ev.name]; const [t, m] = f ? f(ev.args || {}) : [ev.name, ""];
+    if (ev.name !== "finish_walk") setNow(`<span class="spin"></span> ${esc(t)}`);
+    if (cur < 0 && m) bubble(m + "…");   // 案内が始まるまでは、もちこがエージェントの様子を伝える
+    const a = ev.args || {};
+    if (ev.name === "search_places") lastStep = addStep(`🔎 ${cut(a.query, 18)}`, "", a.query);
+    else if (ev.name === "check_street_view") lastStep = addStep("📷 通りから見られる？", "", `${(+a.lat).toFixed(4)}, ${(+a.lng).toFixed(4)}`);
+    else if (ev.name === "wikipedia") lastStep = addStep(`📚 ${cut(a.title, 16)}`, "", `Wikipedia（${a.lang || "ja"}）`);
+    else lastStep = null;
+  }
   else if (ev.type === "result") {
-    if (ev.name === "check_street_view" && pendingTool) { pendingTool.classList.add(ev.ok ? "ok" : "ng"); pendingTool.querySelector(".tx").insertAdjacentHTML("beforeend", ev.ok ? " → ✅ 歩けます" : " → ❌ 画像なし（差しかえを考えます）"); }
-    if (ev.stop) { walk.stops.push(ev.stop); drawRoute(); if (walk.stops.length === 1) { if (tour.on) tourFrom(0); else show(0); } else { renderBar(); if (walk.stops.length === cur + 2 && !muted) fetchVoice(ev.stop.narration, "ja-JP"); } }
-    if (ev.name === "search_places" && pendingTool) { const m = ev.summary.match(/"name": ?"([^"]+)"/); if (m) pendingTool.querySelector(".tx").insertAdjacentHTML("beforeend", `<small>→ ${esc(m[1])} など</small>`); }
+    if (ev.name === "check_street_view" && lastStep) {
+      let info = {}; try { info = JSON.parse(ev.summary.replace(/…$/, "")); } catch {}
+      if (ev.ok) { lastStep.className = "st ok"; lastStep.textContent = info.by_google === false ? "📷 ✅ 見られる（個人の写真）" : "📷 ✅ 見られる"; }
+      else { lastStep.className = "st ng"; lastStep.textContent = "📷 ❌ 写真なし → 差しかえ"; }
+    }
+    if (ev.name === "wikipedia" && lastStep && /"found": false/.test(ev.summary)) { lastStep.className = "st ng"; lastStep.textContent += " ❌"; }
+    if (ev.name === "add_stop" && !ev.stop) addStep("📍 確認が足りず、やり直し", "ng");
+    if (ev.stop) {
+      walk.stops.push(ev.stop); const i = walk.stops.length - 1;
+      finishCard(ev.stop, i); drawRoute(); renderBar();
+      if (i === 0) { if (tour.on) tourFrom(0); else show(0); }
+      else markCards();
+    }
   }
   else if (ev.type === "done") {
-    const was = cur; walk = {...ev.walk, done: true}; drawRoute(); if (tour.driving) renderBar(); else show(Math.max(0, cur), was >= 0); renderQuiz();
+    walk.title = ev.walk.title; walk.intro = ev.walk.intro; walk.done = true;
+    if (work && !work.dataset.i) { work.remove(); work = null; }
+    drawRoute(); renderBar(); if (cur >= 0) renderInfo(cur);
     const st = ev.walk.stats || {};
-    addTrace("ok", "🏁", `完成：「${esc(walk.title)}」 ${walk.stops.length}か所`);
+    setNow(`✅ 「${esc(walk.title)}」ができました（${walk.stops.length}か所）`, "done");
     $("#stats").textContent = `${st.seconds}秒・道具を${st.tool_calls}回使用・${st.model}`;
-    if (was < 0) { if (tour.on) tourFrom(0); else if (walk.intro) mochiSay(walk.intro + " " + (walk.stops[0]?.narration || "")); }
+    if (cur < 0 && walk.stops.length) { if (tour.on) tourFrom(0); else show(0); }
   }
   else if (ev.type === "error") fail(ev.message);
 }
-function fail(msg){ addTrace("ng", "⚠️", esc(msg)); $("#go").disabled = false; if (!walk.stops.length) { $("#info").className = "welcome"; $("#info").textContent = msg; } }
+function fail(msg){
+  setNow("⚠️ " + esc(msg), "ng"); $("#go").disabled = false;
+  if (work && !work.dataset.i) { work.remove(); work = null; }
+  if (!walk.stops.length) { $("#info").className = "welcome"; $("#info").textContent = msg; mochiSay("ごめんね、うまく道が作れなかったよ。もう一度ためしてみてね。"); }
+  else walk.done = true;
+}
 
 $("#go").onclick = go;
 $("#presets").addEventListener("click", e => { const c = e.target.closest(".chip"); if (c) { $("#req").value = c.textContent; go(); } });
 $("#req").addEventListener("keydown", e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) go(); });
 document.addEventListener("click", e => {
-  if (e.target.closest("#tourBtn")) { tour.on = !tour.on; if (tour.on) tourFrom(Math.max(0, cur)); else { tourStop(); show(cur, true); } return; }
-  const b = e.target.closest("#stopbar button"); if (b) { tour.driving = false; return show(+b.dataset.i); }
-  const n = e.target.closest("[data-nav]"); if (n) { tour.driving = false; return show(cur + +n.dataset.nav); }
-  const s = e.target.closest("[data-say]"); if (s) { if (tour.driving) { tour.on = false; tourStop(); show(cur, true); } return speak(s.dataset.say, s.dataset.lang); }   // 現地のことばも Gemini の声で
-  const a = e.target.closest(".qq button[data-a]");
-  if (a) { const qd = a.closest(".qq"), q = walk.quiz[+qd.dataset.q], k = +a.dataset.a; if (qd.dataset.done) return; qd.dataset.done = 1;
-    qd.querySelectorAll("button").forEach((x, j) => { if (j === q.answer) x.classList.add("right"); else if (j === k) x.classList.add("wrong"); }); qd.querySelector(".ex").hidden = false; }
+  if (e.target.closest("#tourBtn")) { tour.on = !tour.on; if (tour.on) tourFrom(Math.max(0, cur)); else { tourStop(); renderInfo(cur); markCards(); } return; }
+  const card = e.target.closest(".sc[data-i]"); if (card) return goTo(+card.dataset.i);
+  const b = e.target.closest("#stopbar button"); if (b) return goTo(+b.dataset.i);
+  const n = e.target.closest("[data-nav]"); if (n) return goTo(cur + +n.dataset.nav);
+  const s = e.target.closest("[data-say]"); if (s) { if (tour.driving) { tour.on = false; tourStop(); renderInfo(cur); } return speak(s.dataset.say, s.dataset.lang); }
 });
 loadMaps().catch(() => {});
 </script>
