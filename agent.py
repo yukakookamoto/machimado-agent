@@ -132,10 +132,17 @@ class Walk:
     async def check_street_view(self, lat: float, lng: float, radius_m: float = 50) -> dict:
         radius = int(max(10, min(1000, radius_m or 50)))
         q = urllib.parse.urlencode({"location": f"{lat},{lng}", "radius": radius, "source": "outdoor", "key": MAPS_API_KEY})
-        r = await self.http.get(f"https://maps.googleapis.com/maps/api/streetview/metadata?{q}")
-        d = r.json() if r.status_code == 200 else {"status": f"HTTP {r.status_code}"}
+        url = f"https://maps.googleapis.com/maps/api/streetview/metadata?{q}"
+        for attempt in range(2):   # 拒否はたまに一時的なことがあるので、1回だけ待ってやり直す
+            r = await self.http.get(url)
+            d = r.json() if r.status_code == 200 else {"status": f"HTTP {r.status_code}"}
+            if d.get("status") != "REQUEST_DENIED":
+                break
+            await asyncio.sleep(1.5)
         if d.get("status") == "REQUEST_DENIED":
-            self.fatal = "ストリートビューの確認が拒否されました（地図の鍵で Street View Static API が使えるようになっていません）。"
+            why = str(d.get("error_message", ""))[:200]
+            log.error("streetview REQUEST_DENIED: %s", why)
+            self.fatal = f"ストリートビューの確認が拒否されました（{why or '地図の鍵の設定を確かめてください'}）"
             return {"available": False, "status": "REQUEST_DENIED", "error": "設定の問題です。やり直しても直りません。"}
         if d.get("status") != "OK":
             return {"available": False, "status": d.get("status"), "hint": "半径を広げるか、別の地点にしてください。"}
