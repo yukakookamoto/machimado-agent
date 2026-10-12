@@ -34,8 +34,12 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;padding:8px
 .info h2{margin:0;font:700 22px/1.3 "Zen Maru Gothic",sans-serif}
 .info h2 small{font:500 14px "Noto Sans JP";color:var(--ink2);margin-left:8px}
 .meta{font-size:12.5px;color:var(--ink2)}
-.phrase{display:flex;gap:10px;align-items:center;background:var(--bg);border:1px dashed var(--line);border-radius:12px;padding:8px 12px}
-.phrase b{font-size:17px}
+.phrases{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+@media (max-width:1200px){.phrases{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.phrase{display:flex;gap:8px;align-items:flex-start;background:var(--bg);border:1px dashed var(--line);border-radius:12px;padding:7px 10px;min-width:0}
+.phrase b{font-size:15px;line-height:1.35;display:block;word-break:break-word}
+.phrase small{display:block;font-size:11.5px;color:var(--ink2);line-height:1.4}
+.phrase .say{width:30px;height:30px;font-size:14px}
 .say{border:0;background:var(--accent2);color:#fff;border-radius:999px;width:34px;height:34px;cursor:pointer;flex:none;font-size:16px}
 .nav{display:flex;gap:8px;justify-content:space-between;align-items:center;flex-wrap:wrap}
 .nav button{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:7px 16px;font:inherit;cursor:pointer}
@@ -191,7 +195,7 @@ async function loadMaps(){
 // ================= エージェントの足あと（立ち寄り先ごとのカード） =================
 const NOW = {   // [足あとに出す文, もちこが言う文]
   search_places: a => [`「${cut(a.query, 30)}」をさがしています`, `いま「${cut(a.query, 24)}」をさがしているよ`],
-  check_street_view: () => ["その場所を、通りから見られるか確かめています", "通りから見られるか、確かめているよ"],
+  check_street_view: a => a.facing ? ["建物の正面が見える通りをさがしています", "正面から見られる場所をさがしているよ"] : ["その場所を、通りから見られるか確かめています", "通りから見られるか、確かめているよ"],
   wikipedia: a => [`Wikipediaで「${cut(a.title, 24)}」を調べています`, `「${cut(a.title, 20)}」のこと、調べているよ`],
   add_stop: a => [`「${cut(a.name, 24)}」を立ち寄り先に決めました`, `「${cut(a.name, 20)}」に決めたよ！`],
   finish_walk: () => ["散歩道を仕上げています", "もうすぐ散歩道ができあがるよ"],
@@ -242,10 +246,10 @@ function drawRoute(){
   line = new google.maps.Polyline({path, map, strokeColor: "#C2502E", strokeOpacity: .35, strokeWeight: 3, icons: [{icon: {path: "M 0,-1 0,1", strokeOpacity: 1, scale: 3}, offset: "0", repeat: "12px"}]});
   if (path.length && !tour.driving) { const b = new google.maps.LatLngBounds(); path.forEach(p => b.extend(p)); map.fitBounds(b, 30); if (path.length === 1) map.setZoom(16); }
 }
-function stillUrl(id, heading){ return `https://maps.googleapis.com/maps/api/streetview?size=640x360&scale=2&pano=${encodeURIComponent(id)}&heading=${Math.round(heading || 0)}&pitch=0&fov=90&key=${encodeURIComponent(mapsKey)}`; }
+function stillUrl(id, heading, pitch){ return `https://maps.googleapis.com/maps/api/streetview?size=640x360&scale=2&pano=${encodeURIComponent(id)}&heading=${Math.round(heading || 0)}&pitch=${Math.round(pitch || 0)}&fov=90&key=${encodeURIComponent(mapsKey)}`; }
 // 地点の画像を出す。まず静止画（すぐ出る）を重ね、ストリートビューが読みこまれたら外す。読みこめたら true
 function setView(s){
-  const pov = {heading: s.heading || 0, pitch: 0, zoom: 1};
+  const pov = {heading: s.heading || 0, pitch: s.pitch || 0, zoom: 1};
   if (!pano) { $("#pano").innerHTML = ""; pano = new google.maps.StreetViewPanorama($("#pano"), {pano: s.pano_id, pov, zoom: 1, addressControl: false, fullscreenControl: false, motionTracking: false, linksControl: true});
     pano.addListener("pano_changed", () => {}); $("#pano").addEventListener("pointerdown", hideStill); }
   else { pano.setPano(s.pano_id); pano.setPov(pov); }
@@ -254,7 +258,7 @@ function setView(s){
     let t = setTimeout(() => res(false), 9000);
     img.onload = () => { clearTimeout(t); img.classList.add("on"); res(true); };
     img.onerror = () => { clearTimeout(t); res(false); };
-    const url = stillUrl(s.pano_id, s.heading);
+    const url = stillUrl(s.pano_id, s.heading, s.pitch);
     if (img.src === url && img.complete && img.naturalWidth) { clearTimeout(t); img.classList.add("on"); res(true); return; }
     img.src = url;
   });
@@ -263,12 +267,13 @@ function hideStill(){ $("#still").classList.remove("on"); }
 function plate(s, i){ const p = $("#plate"); p.innerHTML = `📍 ${i + 1}. ${esc(s.name)}${s.local_name ? `<small>${esc(s.local_name)}</small>` : ""}`; p.classList.add("on"); clearTimeout(plate.t); plate.t = setTimeout(() => p.classList.remove("on"), 5000); }
 function renderInfo(i){
   const s = walk.stops[i]; if (!s) return;
-  const lang = guessLang(s.phrase);
+  const phr = (s.phrases && s.phrases.length) ? s.phrases : (s.phrase ? [{text: s.phrase, reading: s.phrase_reading, meaning: s.phrase_meaning}] : []);
+  const lang = guessLang(phr.map(p => p.text).join(" "));
   $("#info").className = "info";
   $("#info").innerHTML = `<h2>${esc(s.name)}${s.local_name ? `<small>${esc(s.local_name)}</small>` : ""}</h2>
     <div class="meta"><span class="lmeta" id="lmeta"></span>${local.data && local.data.tz ? "・" : ""}${s.from_prev_m ? `前の地点から約${s.from_prev_m >= 1000 ? (s.from_prev_m / 1000).toFixed(1) + "km" : s.from_prev_m + "m"}・` : ""}${s.date ? `撮影 ${esc(s.date)}・` : ""}${s.source ? `<a href="${esc(s.source)}" target="_blank" rel="noopener">出典</a>` : ""}</div>
     <p style="margin:0">${esc(s.narration)}</p>
-    ${s.phrase ? `<div class="phrase"><button class="say" data-say="${esc(s.phrase)}" data-lang="${lang}" title="読み上げ">🔊</button><div><b>${esc(s.phrase)}</b><br><small>${esc(s.phrase_reading || "")}　${esc(s.phrase_meaning || "")}</small></div></div>` : ""}
+    ${phr.length ? `<div class="phrases">${phr.map(p => `<div class="phrase"><button class="say" data-say="${esc(p.text)}" data-lang="${lang}" title="読み上げ">🔊</button><div style="min-width:0"><b>${esc(p.text)}</b><small>${esc(p.reading || "")}</small><small>${esc(p.meaning || "")}</small></div></div>`).join("")}</div>` : ""}
     <div class="nav"><button data-nav="-1" ${i ? "" : "disabled"}>‹ 前へ</button><button class="tourbtn ${tour.on ? "" : "off"}" id="tourBtn">${tour.on ? "⏸ 自動案内を止める" : "▶ もちこと自動で歩く"}</button><span class="meta">${i + 1} / ${walk.stops.length}</span><button data-nav="1" ${i < walk.stops.length - 1 ? "" : "disabled"}>次へ ›</button></div>`;
 }
 // 手で地点を見る（自動案内オフのとき）
@@ -361,9 +366,9 @@ function lookAround(on){
   if (!on || !pano) return;
   const turn = () => {   // ふり向いて、止まって眺める（回しつづけると画像が読みこめない）
     hideStill();
-    const from = pano.getPov().heading, to = from + 40; let k = 0;
+    const pv = pano.getPov(), from = pv.heading, to = from + 40, pitch = pv.pitch || 0; let k = 0;
     tour.anim = setInterval(() => { k++; const t = k / 24, e = t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-      pano.setPov({heading: (from + (to - from) * e) % 360, pitch: 0, zoom: 1}); if (k >= 24) clearInterval(tour.anim); }, 60);
+      pano.setPov({heading: (from + (to - from) * e) % 360, pitch, zoom: 1}); if (k >= 24) clearInterval(tour.anim); }, 60);
     tour.spin = setTimeout(turn, 7000);
   };
   tour.spin = setTimeout(turn, 5000);
@@ -499,6 +504,7 @@ async function go(){
   $("#go").disabled = false;
 }
 let lastTool = null, lastStep = null;
+const FACE = {N: "北", NE: "北東", E: "東", SE: "南東", S: "南", SW: "南西", W: "西", NW: "北西"};
 function onEvent(ev){
   if (ev.type === "start") setNow(`<span class="spin"></span> 散歩の計画を立てています <small class="meta">（${esc(ev.model)}）</small>`);
   else if (ev.type === "think") {
@@ -512,14 +518,14 @@ function onEvent(ev){
     if (cur < 0 && m) bubble(m + "…");   // 案内が始まるまでは、もちこがエージェントの様子を伝える
     const a = ev.args || {};
     if (ev.name === "search_places") lastStep = addStep(`🔎 ${cut(a.query, 18)}`, "", a.query);
-    else if (ev.name === "check_street_view") lastStep = addStep("📷 通りから見られる？", "", `${(+a.lat).toFixed(4)}, ${(+a.lng).toFixed(4)}`);
+    else if (ev.name === "check_street_view") lastStep = addStep(a.facing ? `🎯 正面（${FACE[a.facing] || a.facing}向き）から見られる？` : "📷 通りから見られる？", "", `${(+a.lat).toFixed(4)}, ${(+a.lng).toFixed(4)}`);
     else if (ev.name === "wikipedia") lastStep = addStep(`📚 ${cut(a.title, 16)}`, "", `Wikipedia（${a.lang || "ja"}）`);
     else lastStep = null;
   }
   else if (ev.type === "result") {
     if (ev.name === "check_street_view" && lastStep) {
       let info = {}; try { info = JSON.parse(ev.summary.replace(/…$/, "")); } catch {}
-      if (ev.ok) { lastStep.className = "st ok"; lastStep.textContent = info.by_google === false ? "📷 ✅ 見られる（個人の写真）" : "📷 ✅ 見られる"; }
+      if (ev.ok) { lastStep.className = "st ok"; lastStep.textContent = info.facade_view ? "🎯 ✅ 正面から見られる" : info.by_google === false ? "📷 ✅ 見られる（個人の写真）" : "📷 ✅ 見られる"; }
       else { lastStep.className = "st ng"; lastStep.textContent = "📷 ❌ 写真なし → 差しかえ"; }
     }
     if (ev.name === "wikipedia" && lastStep && /"found": false/.test(ev.summary)) { lastStep.className = "st ng"; lastStep.textContent += " ❌"; }

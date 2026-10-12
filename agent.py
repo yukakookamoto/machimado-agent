@@ -48,6 +48,8 @@ Googleストリートビューで実際に歩ける「バーチャル海外散�
 2. 立ち寄り先の候補を考え、search_places で実在と正確な位置を確かめる。
 3. 各地点で check_street_view を、search_places で得た「その場所の緯度経度」で呼び、屋外のストリートビューがあるか確かめる。
    - 無い／遠すぎる（distance_m が 80m 以上）場合は、半径を広げて再確認するか、別の候補に差し替える。差し替えた理由は短く書く。
+   - 建物・駅・図書館・教会・美術館などは、正面（おもな入口）がどの方角を向いているかを考えて facing に入れる。
+     そうすると、正面の通りから建物を見上げる写真が選ばれる（facade_view が true なら成功）。
    - by_google が false（個人が撮った写真）のときは、建物の中の写真のことがある。外から見える場所として説明するか、別の候補にする。
 4. 地点どうしはできるだけ歩いて回れる距離（前の地点から2km以内が目安）で、自然な順路にする。
 5. wikipedia で事実を調べ、解説は調べた内容に基づいて書く。わからないことは書かない。
@@ -58,7 +60,7 @@ Googleストリートビューで実際に歩ける「バーチャル海外散�
      話しことばでも、事実は調べた内容だけにする。読み上げるので、記号や括弧はなるべく使わない。
      画面には、その地点の通りから見た景色が映る。その場所から「見えるもの」を中心に話し、
      見えないもの（建物の中・遠くの別の場所）を、目の前にあるように言わない。
-   - phrase: その国の言葉でひとこと（看板や会話で使える短い表現）と、読み方・意味。
+   - phrases: その場所で旅行者が使えそうな現地語のフレーズを4つ（場面に合ったもの）と、読み方・意味。
    - heading は省略してよい（カメラは自動で、その場所の方向を向く）。
 7. 4〜8か所そろったら finish_walk を呼んで終える。intro も、もちこの口調のあいさつ（1〜2文）にする。
 
@@ -81,20 +83,34 @@ TOOLS = [types.Tool(function_declarations=[
         {"query": S("さがす言葉（例: 'Marché d'Aligre Paris'）"),
          "near_lat": N("この近くを優先（任意）"), "near_lng": N("この近くを優先（任意）")}, ["query"]),
     _fd("check_street_view", "その地点に屋外のストリートビュー画像があるか確かめる。あれば撮影地点・撮影年月・pano_id を返す。",
-        {"lat": N("緯度"), "lng": N("経度"), "radius_m": N("さがす半径（m）。初めは50、なければ150〜300に広げる")}, ["lat", "lng"]),
+        {"lat": N("その場所（建物）の緯度"), "lng": N("その場所（建物）の経度"), "radius_m": N("さがす半径（m）。初めは50、なければ150〜300に広げる"),
+         "facing": S("建物・駅・教会などの正面（おもな入口）が向いている方角。N / NE / E / SE / S / SW / W / NW のどれか。"
+                     "わかるときは必ず入れる（例：ニューヨーク公共図書館の本館は五番街に面して E、グランド・セントラル駅の正面は42丁目に面して S）。"
+                     "広場・通り・公園など正面がない場所では省略")}, ["lat", "lng"]),
     _fd("wikipedia", "Wikipediaの要約を調べる。事実の確認に使う。",
         {"title": S("記事名"), "lang": S("言語コード（ja / en / fr / it / es / de など）")}, ["title"]),
     _fd("add_stop", "確認が取れた立ち寄り先を、散歩コースに確定して追加する。",
         {"name": S("場所の名前（日本語）"), "local_name": S("現地語の名前"),
          "lat": N("ストリートビューの撮影地点の緯度"), "lng": N("ストリートビューの撮影地点の経度"),
          "pano_id": S("check_street_view で得た pano_id"), "heading": N("向く方向 0-359（任意）"),
-         "narration": S("もちこが話す解説 2〜4文（話しことば）"), "phrase": S("現地語のひとこと"), "phrase_reading": S("読み方（カタカナ）"),
-         "phrase_meaning": S("意味"), "source": S("根拠にした Wikipedia などのURL（任意）")},
+         "narration": S("もちこが話す解説 2〜4文（話しことば）"),
+         "phrases": {"type": "ARRAY", "description": "この場所で旅行者が実際に使えそうな現地語のフレーズを4つ（場面に合ったもの。あいさつ・注文・たずねる・お礼など）",
+                     "items": {"type": "OBJECT", "properties": {"text": S("現地語のフレーズ"), "reading": S("読み方（カタカナ）"), "meaning": S("日本語の意味")},
+                               "required": ["text", "meaning"]}},
+         "source": S("根拠にした Wikipedia などのURL（任意）")},
         ["name", "lat", "lng", "pano_id", "narration"]),
     _fd("finish_walk", "散歩コースを完成させて終える。",
         {"title": S("散歩のタイトル"), "intro": S("もちこのはじめのあいさつ 1〜2文")},
         ["title"]),
 ])]
+
+
+_COMPASS = {"N": 0, "NE": 45, "E": 90, "SE": 135, "S": 180, "SW": 225, "W": 270, "NW": 315,
+            "北": 0, "北東": 45, "東": 90, "南東": 135, "南": 180, "南西": 225, "西": 270, "北西": 315}
+
+
+def _angdiff(a: float, b: float) -> float:
+    return abs(((a - b + 540) % 360) - 180)
 
 
 def _bearing(a: tuple[float, float], b: tuple[float, float]) -> float:
@@ -150,11 +166,41 @@ class Walk:
             await asyncio.sleep(1.5)
         return d
 
-    async def check_street_view(self, lat: float, lng: float, radius_m: float = 50) -> dict:
+    async def _facade(self, lat: float, lng: float, facing: str) -> tuple[dict, float] | None:
+        """正面が向いている側の通りで、Google が撮った写真をさがす（建物を正面から見るため）"""
+        center = _COMPASS.get(str(facing).strip().upper())
+        if center is None:
+            return None
+        k = max(.2, math.cos(math.radians(lat)))
+        pts = []
+        for off in (0, -20, 20, -40, 40):
+            for dist in (30, 55, 85, 120):
+                br = math.radians(center + off)
+                pts.append((lat + dist * math.cos(br) / 111320, lng + dist * math.sin(br) / (111320 * k)))
+        found = await asyncio.gather(*[self._sv_meta(a, b, 35) for a, b in pts], return_exceptions=True)
+        best = None
+        for c in found:
+            if not (isinstance(c, dict) and c.get("status") == "OK" and "Google" in str(c.get("copyright", ""))):
+                continue
+            cl = c.get("location", {})
+            p = (cl.get("lat"), cl.get("lng"))
+            dist = _dist_m((lat, lng), p)
+            if dist < 15 or dist > 160:
+                continue
+            side = _angdiff(_bearing((lat, lng), p), center)   # 建物から見て、写真がどの方角にあるか
+            if side > 50:
+                continue
+            score = side * 2 + abs(dist - 60) / 2
+            if best is None or score < best[0]:
+                best = (score, c, dist)
+        return (best[1], best[2]) if best else None
+
+    async def check_street_view(self, lat: float, lng: float, radius_m: float = 50, facing: str | None = None) -> dict:
         radius = int(max(10, min(1000, radius_m or 50)))
-        d = await self._sv_meta(lat, lng, radius)
+        fac = await self._facade(lat, lng, facing) if facing else None
+        d = fac[0] if fac else await self._sv_meta(lat, lng, radius)
         # 個人が撮った写真（建物の中のこともある）なら、近くで Google の車が撮った道の写真をさがす
-        if d.get("status") == "OK" and "Google" not in str(d.get("copyright", "")):
+        if not fac and d.get("status") == "OK" and "Google" not in str(d.get("copyright", "")):
             best = None
             k = max(.2, math.cos(math.radians(lat)))
             pts = [(lat + dy * st, lng + dx * st / k) for st in (0.00035, 0.0007)
@@ -181,7 +227,10 @@ class Walk:
                 "date": d.get("date"), "distance_m": round(dist),
                 "by_google": "Google" in str(d.get("copyright", "")),
                 # 撮影地点から、さがしている場所の方向（カメラをそちらに向ける）
-                "heading_to_place": round(_bearing((loc.get("lat"), loc.get("lng")), (lat, lng))) if dist >= 6 else None}
+                "heading_to_place": round(_bearing((loc.get("lat"), loc.get("lng")), (lat, lng))) if dist >= 6 else None,
+                "facade_view": bool(fac),
+                # 近いほど上を向いて、建物全体が入るように
+                "pitch": (16 if dist < 40 else 10 if dist < 80 else 5) if fac else 0}
         self.verified[info["pano_id"]] = info
         return info
 
@@ -207,9 +256,18 @@ class Walk:
             return {"ok": False, "error": f"立ち寄り先は{MAX_STOPS}か所までです。finish_walk で終えてください。"}
         v = self.verified[pid]
         stop = {k: a.get(k) for k in ("name", "local_name", "heading", "narration", "phrase", "phrase_reading", "phrase_meaning", "source")}
+        ph = []
+        for x in (a.get("phrases") or [])[:4]:
+            if isinstance(x, dict) and x.get("text"):
+                ph.append({"text": str(x["text"])[:80], "reading": str(x.get("reading") or "")[:80], "meaning": str(x.get("meaning") or "")[:60]})
+        if not ph and a.get("phrase"):
+            ph = [{"text": a.get("phrase"), "reading": a.get("phrase_reading") or "", "meaning": a.get("phrase_meaning") or ""}]
+        stop["phrases"] = ph
         stop.update({"lat": v["lat"], "lng": v["lng"], "pano_id": pid, "date": v.get("date"), "by_google": v.get("by_google")})
         if v.get("heading_to_place") is not None:   # 計算した向きを優先（推測の向きより確か）
             stop["heading"] = v["heading_to_place"]
+        stop["pitch"] = v.get("pitch", 0)
+        stop["facade_view"] = bool(v.get("facade_view"))
         if self.stops:
             stop["from_prev_m"] = round(_dist_m((self.stops[-1]["lat"], self.stops[-1]["lng"]), (v["lat"], v["lng"])))
         self.stops.append(stop)
