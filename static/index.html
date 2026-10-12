@@ -389,27 +389,36 @@ function refine(s){
     if (!c || !window.google) return;
     const want = center == null ? null : center;
     if (want == null && s.by_google !== false) return;   // 正面の向きがなく、もともと道の写真なら、そのまま
-    const offs = want == null ? [0, 45, 90, 135, 180, 225, 270, 315] : [0, -12, 12, -25, 25, -40, 40];
-    const dists = want == null ? [25, 50] : [35, 65, 100, 140];
+    const offs = want == null ? [0, 45, 90, 135, 180, 225, 270, 315] : [0, -12, 12, -25, 25, -40];
+    const dists = want == null ? [25, 50] : [35, 55, 75, 95, 115, 140, 165];
     const base = want == null ? 0 : want, k = Math.cos(c.lat * Math.PI / 180), jobs = [];
     for (const o of offs) for (const d of dists) {
       const br = (base + o) * Math.PI / 180;
-      jobs.push(svGet({location: {lat: c.lat + d * Math.cos(br) / 111320, lng: c.lng + d * Math.sin(br) / (111320 * k)}, radius: 30,
+      jobs.push(svGet({location: {lat: c.lat + d * Math.cos(br) / 111320, lng: c.lng + d * Math.sin(br) / (111320 * k)}, radius: 25,
         sources: [google.maps.StreetViewSource.GOOGLE], preference: google.maps.StreetViewPreference.NEAREST}));
     }
-    const found = await Promise.all(jobs); let best = null;
-    for (const f of found) {
-      if (!f) continue;
+    const seen = new Map();
+    for (const f of await Promise.all(jobs)) {
+      if (!f || seen.has(f.location.pano)) continue;
       const p = {lat: f.location.latLng.lat(), lng: f.location.latLng.lng()}, dist = distM(c, p);
-      if (dist < 12 || dist > 180) continue;
-      const side = want == null ? 0 : angDiff(bearing(c, p), want);
-      if (side > 45) continue;
-      const score = want == null ? dist : side * 3 + Math.abs(dist - 70) / 4;
-      if (!best || score < best.score) best = {score, id: f.location.pano, p, dist};
+      if (dist < 12 || dist > 200) continue;
+      seen.set(f.location.pano, {id: f.location.pano, p, dist, side: want == null ? 0 : angDiff(bearing(c, p), want)});
+    }
+    const all = [...seen.values()];
+    let best = null, across = false;
+    if (want == null) best = all.sort((x, y) => x.dist - y.dist)[0];
+    else {
+      // いちばん近い「正面の歩道」の写真より、少し下がった「通りの向こう側」から見ると、建物全体が入る
+      const aligned = all.filter(v => v.side <= 18).sort((x, y) => x.dist - y.dist);
+      if (aligned.length) {
+        const front = aligned[0].dist;
+        const far = aligned.filter(v => v.dist >= front + 15 && v.dist <= front + 60).sort((x, y) => (x.side - y.side) || (x.dist - y.dist))[0];
+        best = far || aligned[0]; across = !!far;
+      } else best = all.filter(v => v.side <= 45).sort((x, y) => (x.side * 3 + x.dist / 4) - (y.side * 3 + y.dist / 4))[0];
     }
     if (!best) return;
     s.pano_id = best.id; s.lat = best.p.lat; s.lng = best.p.lng; s.by_google = true;
-    s.heading = Math.round(bearing(best.p, c)); s.pitch = want == null ? 0 : best.dist < 45 ? 16 : best.dist < 90 ? 10 : 6;
+    s.heading = Math.round(bearing(best.p, c)); s.pitch = want == null ? 0 : across ? 14 : 18;
   })().catch(() => {});
   return s.refined;
 }
