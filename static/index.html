@@ -224,13 +224,21 @@ $("#mochiBody").addEventListener("click", () => { if (muted) { muted = false; $(
 $("#mochiMute").addEventListener("click", e => { e.stopPropagation(); muted = !muted; $("#mochiMute").textContent = muted ? "🔇" : "🔊";
   if (tour.driving && cur >= 0) tourFrom(cur); else if (muted) stopVoice(); else mochiSay($("#bubbleText").textContent); });
 // ---- 自動案内：もちこが話しながら見まわし、終わったら次の地点まで歩いていく ----
-const tour = {on: true, token: 0, driving: false, spin: null};
+const tour = {on: true, token: 0, driving: false, spin: null, anim: null};
 const BYE = "おつかれさま！これで散歩はおしまいだよ。下のクイズにも挑戦してみてね。";
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 function bearing(a, b){ const r = Math.PI / 180, y = Math.sin((b.lng - a.lng) * r) * Math.cos(b.lat * r), x = Math.cos(a.lat * r) * Math.sin(b.lat * r) - Math.sin(a.lat * r) * Math.cos(b.lat * r) * Math.cos((b.lng - a.lng) * r); return (Math.atan2(y, x) / r + 360) % 360; }
 function lookAround(on){
-  clearInterval(tour.spin); tour.spin = null;
-  if (on && pano) tour.spin = setInterval(() => { const p = pano.getPov(); pano.setPov({heading: (p.heading + .12) % 360, pitch: p.pitch}); }, 50);   // ゆっくり見まわす
+  // 少し待って画像が読みこまれてから、「ふり向いて、止まって眺める」をくり返す（回しつづけると画像が読みこめないため）
+  clearTimeout(tour.spin); clearInterval(tour.anim); tour.spin = null;
+  if (!on || !pano) return;
+  const turn = () => {
+    const from = pano.getPov().heading, to = from + 50; let k = 0;
+    tour.anim = setInterval(() => { k++; const t = k / 24, e = t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      pano.setPov({heading: (from + (to - from) * e) % 360, pitch: 0}); if (k >= 24) clearInterval(tour.anim); }, 60);
+    tour.spin = setTimeout(turn, 6000);
+  };
+  tour.spin = setTimeout(turn, 3500);
 }
 let walker = null;
 function walkerAt(pos){
@@ -254,7 +262,7 @@ async function walkTo(a, b, my){
     const d = await findPano(loc, 80);
     if (my !== tour.token) return false;
     if (d && !seen.has(d.location.pano)) { seen.add(d.location.pano); pano.setPano(d.location.pano); pano.setPov({heading: head, pitch: 0}); }
-    await sleep(1100);
+    await sleep(1600);
   }
   $("#walking").hidden = true;
   return my === tour.token;
