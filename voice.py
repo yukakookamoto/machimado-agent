@@ -62,13 +62,49 @@ async def _discover(client: genai.Client) -> None:
         log.warning("tts model list failed: %s", e)
 
 
-async def synth(text: str, lang_hint: str = "ja") -> bytes:
-    """文を声（WAV）にする。失敗したら例外を投げる（画面側はブラウザの声に切りかえる）"""
+# ---- ふだんの声：Google Cloud Text-to-Speech（Chirp 3 HD）。日本語の抑揚がいちばん自然 ----
+MAPS_API_KEY = os.environ.get("MAPS_API_KEY", "")   # この鍵で Cloud Text-to-Speech API も使えるようにしてある
+CHIRP_VOICE = os.environ.get("MOCHIKO_CHIRP", "Aoede")   # Chirp 3 HD の声の名前（Aoede / Leda / Kore / Zephyr など）
+CHIRP_NAMES = {"Aoede", "Leda", "Kore", "Zephyr", "Callirrhoe", "Despina", "Erinome", "Laomedeia", "Pulcherrima", "Vindemiatrix",
+               "Achernar", "Autonoe", "Gacrux", "Sulafat", "Puck", "Charon", "Fenrir", "Orus"}
+LOCALES = {"ja": "ja-JP", "fr": "fr-FR", "en": "en-US", "it": "it-IT", "es": "es-ES", "de": "de-DE", "zh": "cmn-CN", "ko": "ko-KR", "pt": "pt-BR"}
+
+
+async def _chirp(text: str, locale: str, voice: str) -> bytes:
+    import base64
+    import httpx
+    body = {"input": {"text": text}, "voice": {"languageCode": locale, "name": f"{locale}-Chirp3-HD-{voice}"},
+            "audioConfig": {"audioEncoding": "LINEAR16", "sampleRateHertz": 24000}}
+    async with httpx.AsyncClient(timeout=20.0) as http:
+        r = await http.post("https://texttospeech.googleapis.com/v1/text:synthesize", params={"key": MAPS_API_KEY}, json=body)
+    if r.status_code != 200:
+        raise RuntimeError(f"cloud tts {r.status_code}: {r.text[:200]}")
+    data = base64.b64decode(r.json()["audioContent"])
+    return data if data[:4] == b"RIFF" else _wav(data, 24000)
+
+
+def _put(key: str, wav: bytes) -> bytes:
+    _cache[key] = wav
+    if len(_cache) > _CACHE_MAX:
+        _cache.popitem(last=False)
+    return wav
+
+
+async def synth(text: str, lang_hint: str = "ja", voice: str | None = None) -> bytes:
+    """文を声（WAV）にする。Chirp 3 HD → だめなら Gemini の音声生成。両方だめなら例外（画面側はブラウザの声）"""
     text = text.strip()[:700]
-    key = hashlib.sha1(f"{VOICE_NAME}|{lang_hint}|{text}".encode()).hexdigest()
+    voice = voice if voice in CHIRP_NAMES else CHIRP_VOICE
+    lang = (lang_hint or "ja").split("-")[0].lower()
+    key = hashlib.sha1(f"{voice}|{lang}|{text}".encode()).hexdigest()
     if key in _cache:
         _cache.move_to_end(key)
         return _cache[key]
+    if MAPS_API_KEY:
+        try:
+            return _put(key, await _chirp(text, LOCALES.get(lang, "en-US"), voice))
+        except Exception as e:
+            log.warning("chirp tts failed (%s): %s", lang, str(e)[:200])
+    lang_hint = "ja" if lang == "ja" else "other"
     if not GEMINI_API_KEY:
         raise RuntimeError("GEMINI_API_KEY がありません")
     client = genai.Client(api_key=GEMINI_API_KEY)

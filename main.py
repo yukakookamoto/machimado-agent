@@ -61,6 +61,11 @@ async def index():
     return FileResponse(os.path.join(HERE, "static", "index.html"), headers={"Cache-Control": "no-store"})
 
 
+@app.get("/voice")
+async def voice_page():
+    return FileResponse(os.path.join(HERE, "static", "voice.html"), headers={"Cache-Control": "no-store"})
+
+
 @app.get("/healthz")
 async def healthz():
     return {"ok": True}
@@ -126,12 +131,13 @@ async def speak(req: Request):
     except Exception:
         body = {}
     text = str(body.get("text", "")).strip()[:700]
-    lang = "ja" if str(body.get("lang", "ja")).lower().startswith("ja") else "other"
+    lang = str(body.get("lang", "ja"))[:10]
+    vname = str(body.get("voice", "") or "")[:20] or None
     if not text:
         return JSONResponse({"error": "empty"}, status_code=400)
     t0 = time.time()
     try:
-        wav = await voice.synth(text, lang)
+        wav = await voice.synth(text, lang, vname)
     except Exception as e:
         log.warning(json.dumps({"event": "voice_error", "error": str(e)[:300]}, ensure_ascii=False))
         return JSONResponse({"error": "voice"}, status_code=502)

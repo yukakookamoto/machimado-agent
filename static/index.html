@@ -173,7 +173,7 @@ aside{display:grid;gap:16px;align-content:start}
     </div>
   </aside>
 </main>
-<footer>まちまど：AIエージェントが「本当に歩ける」海外の散歩道を組み立てて、もちこがストリートビューで案内します。画像：Google ストリートビュー／解説の出典：Wikipedia（各地点にリンク）。AIの解説にはまちがいが含まれることがあります。</footer>
+<footer><a href="/voice" style="color:inherit">🎙 もちこの声をえらぶ</a>　まちまど：AIエージェントが「本当に歩ける」海外の散歩道を組み立てて、もちこがストリートビューで案内します。画像：Google ストリートビュー／解説の出典：Wikipedia（各地点にリンク）。AIの解説にはまちがいが含まれることがあります。</footer>
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -314,10 +314,11 @@ async function loadLocal(s){
 
 // ================= もちこの声（Gemini の音声生成。だめならブラウザの声） =================
 const voiceCache = new Map();
+let voiceName = ""; try { voiceName = localStorage.getItem("mochiko.voice") || ""; } catch {}
 let audio = null, muted = false, sayToken = 0, sayDone = null;
 function fetchVoice(text, lang = "ja-JP"){
   const k = lang + "|" + text;
-  if (!voiceCache.has(k)) voiceCache.set(k, fetch("/api/voice", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({text, lang})})
+  if (!voiceCache.has(k)) voiceCache.set(k, fetch("/api/voice", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({text, lang, voice: voiceName})})
     .then(r => r.ok ? r.blob() : null).then(b => b ? URL.createObjectURL(b) : null).catch(() => null));
   return voiceCache.get(k);
 }
@@ -334,7 +335,7 @@ function speak(text, lang){   // 話しおわるまで待てる
     const url = await fetchVoice(text, lang);
     if (my !== sayToken) return;
     if (url) { audio = new Audio(url); audio.onended = fin; audio.onerror = fin; try { await audio.play(); return; } catch {} }
-    try { const u = new SpeechSynthesisUtterance(text); u.lang = lang; u.rate = lang === "ja-JP" ? 1.05 : .95; u.pitch = lang === "ja-JP" ? 1.5 : 1.1; u.onend = fin; u.onerror = fin; speechSynthesis.speak(u); } catch { fin(); }
+    try { const u = new SpeechSynthesisUtterance(text); u.lang = lang; u.rate = 1; u.pitch = 1; u.onend = fin; u.onerror = fin; speechSynthesis.speak(u); } catch { fin(); }
   });
 }
 function bubble(text){ $("#mochi").hidden = false; $("#bubbleText").textContent = text; $("#bubble").scrollTop = 0; }

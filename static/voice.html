@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>もちこの声をえらぶ — まちまど</title>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#F6F1E7;--card:#FFFCF6;--ink:#2B2620;--ink2:#7A6E60;--line:#E4D9C6;--accent:#C2502E;--accent2:#2F6B5E}
+@media (prefers-color-scheme:dark){:root{--bg:#17140F;--card:#221E18;--ink:#F1E9DC;--ink2:#B3A592;--line:#3A332A;--accent:#F08A62;--accent2:#7CC2AE}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.7 "Noto Sans JP",sans-serif;padding:24px 16px}
+.wrap{max-width:820px;margin:0 auto;display:grid;gap:14px}
+h1{margin:0;font:700 24px "Zen Maru Gothic",sans-serif}
+h1 span{color:var(--accent)}
+p{margin:0;color:var(--ink2)}
+textarea{width:100%;min-height:72px;border:1px solid var(--line);border-radius:12px;padding:10px 12px;font:inherit;background:var(--card);color:var(--ink)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.v{background:var(--card);border:2px solid var(--line);border-radius:14px;padding:10px 12px;display:grid;gap:6px}
+.v.on{border-color:var(--accent)}
+.v b{font:700 16px "Zen Maru Gothic",sans-serif}
+.v small{color:var(--ink2);font-size:12px}
+.row{display:flex;gap:6px}
+button{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:5px 12px;font:inherit;font-size:13px;cursor:pointer}
+button.pick{background:var(--accent2);color:#fff;border-color:var(--accent2)}
+a{color:var(--accent2)}
+#msg{min-height:1.7em;color:var(--accent2);font-weight:500}
+</style></head><body><div class="wrap">
+<h1>もちこの<span>声</span>をえらぶ</h1>
+<p>「▶ 聞く」で聞きくらべて、気に入った声の「この声にする」を押してください。まちまどの画面にもどると、その声で案内します（このブラウザに保存されます）。</p>
+<textarea id="t">もちこだよ。いま現地は朝の8時、晴れで14度だよ。ここはセーヌ川のすぐそばにある古本屋さんなんだって。緑と黄色の看板がかわいいよね。</textarea>
+<div id="msg"></div>
+<div class="grid" id="g"></div>
+<p><a href="/">← まちまどにもどる</a></p>
+</div>
+<script>
+const V = [["Aoede","やわらかく明るい（標準）"],["Leda","若々しい"],["Kore","はっきり落ちついた"],["Zephyr","明るく軽やか"],["Callirrhoe","おっとり"],["Despina","なめらか"],["Erinome","すっきり"],["Laomedeia","元気"],["Pulcherrima","前向き"],["Vindemiatrix","やさしい"],["Achernar","やわらか"],["Autonoe","明るい"],["Sulafat","あたたかい"]];
+let cur = ""; try { cur = localStorage.getItem("mochiko.voice") || "Aoede"; } catch { cur = "Aoede"; }
+const cache = new Map(); let audio = null;
+function draw(){ document.getElementById("g").innerHTML = V.map(([n, d]) => `<div class="v ${n === cur ? "on" : ""}"><b>${n}</b><small>${d}</small><div class="row"><button data-play="${n}">▶ 聞く</button><button class="${n === cur ? "pick" : ""}" data-pick="${n}">${n === cur ? "✓ えらび中" : "この声にする"}</button></div></div>`).join(""); }
+async function play(n){
+  const text = document.getElementById("t").value.trim(); if (!text) return;
+  const k = n + "|" + text; const msg = document.getElementById("msg"); msg.textContent = `${n} の声を作っています…`;
+  if (!cache.has(k)) cache.set(k, fetch("/api/voice", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({text, lang: "ja-JP", voice: n})}).then(r => r.ok ? r.blob() : null).then(b => b && URL.createObjectURL(b)));
+  const url = await cache.get(k); if (!url) { msg.textContent = "声を作れませんでした。少し待ってもう一度お試しください。"; return; }
+  try { audio && audio.pause(); } catch {}
+  audio = new Audio(url); audio.play(); msg.textContent = `▶ ${n}`;
+}
+document.addEventListener("click", e => {
+  const p = e.target.closest("[data-play]"); if (p) return play(p.dataset.play);
+  const k = e.target.closest("[data-pick]"); if (k) { cur = k.dataset.pick; try { localStorage.setItem("mochiko.voice", cur); } catch {} draw(); document.getElementById("msg").textContent = `もちこの声を ${cur} にしました`; }
+});
+draw();
+</script></body></html>
