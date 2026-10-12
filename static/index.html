@@ -172,7 +172,7 @@ function drawRoute(){
 function show(i, quiet){
   const s = walk.stops[i]; if (!s) return; cur = i;
   if (!pano) { $("#pano").innerHTML = ""; pano = new google.maps.StreetViewPanorama($("#pano"), {pano: s.pano_id, pov: {heading: s.heading || 0, pitch: 0}, zoom: 0, addressControl: false, fullscreenControl: true, motionTracking: false}); }
-  else { pano.setPano(s.pano_id); pano.setPov({heading: s.heading || 0, pitch: 0}); }
+  else { pano.setPano(s.pano_id); pano.setPov({heading: s.heading || 0, pitch: 0, zoom: 0}); }
   const lang = guessLang(s.phrase);
   $("#info").className = "info";
   $("#info").innerHTML = `<h2>${esc(s.name)}${s.local_name ? `<small>${esc(s.local_name)}</small>` : ""}</h2>
@@ -235,7 +235,7 @@ function lookAround(on){
   const turn = () => {
     const from = pano.getPov().heading, to = from + 50; let k = 0;
     tour.anim = setInterval(() => { k++; const t = k / 24, e = t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-      pano.setPov({heading: (from + (to - from) * e) % 360, pitch: 0}); if (k >= 24) clearInterval(tour.anim); }, 60);
+      pano.setPov({heading: (from + (to - from) * e) % 360, pitch: 0, zoom: 0}); if (k >= 24) clearInterval(tour.anim); }, 60);
     tour.spin = setTimeout(turn, 6000);
   };
   tour.spin = setTimeout(turn, 3500);
@@ -261,7 +261,7 @@ async function walkTo(a, b, my){
     walkerAt(loc);
     const d = await findPano(loc, 80);
     if (my !== tour.token) return false;
-    if (d && !seen.has(d.location.pano)) { seen.add(d.location.pano); pano.setPano(d.location.pano); pano.setPov({heading: head, pitch: 0}); }
+    if (d && !seen.has(d.location.pano)) { seen.add(d.location.pano); pano.setPano(d.location.pano); pano.setPov({heading: head, pitch: 0, zoom: 0}); }
     await sleep(1600);
   }
   $("#walking").hidden = true;
