@@ -229,6 +229,7 @@ class Walk:
                 # 撮影地点から、さがしている場所の方向（カメラをそちらに向ける）
                 "heading_to_place": round(_bearing((loc.get("lat"), loc.get("lng")), (lat, lng))) if dist >= 6 else None,
                 "facade_view": bool(fac),
+                "place": {"lat": lat, "lng": lng}, "facing": (str(facing).strip().upper() if facing else None),
                 # 近いほど上を向いて、建物全体が入るように
                 "pitch": (16 if dist < 40 else 10 if dist < 80 else 5) if fac else 0}
         self.verified[info["pano_id"]] = info
@@ -268,6 +269,8 @@ class Walk:
             stop["heading"] = v["heading_to_place"]
         stop["pitch"] = v.get("pitch", 0)
         stop["facade_view"] = bool(v.get("facade_view"))
+        stop["place"] = v.get("place")
+        stop["facing"] = v.get("facing")
         if self.stops:
             stop["from_prev_m"] = round(_dist_m((self.stops[-1]["lat"], self.stops[-1]["lng"]), (v["lat"], v["lng"])))
         self.stops.append(stop)

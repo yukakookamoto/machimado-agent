@@ -281,6 +281,7 @@ async function show(i){
   const s = walk.stops[i]; if (!s) return; cur = i; tour.at = i; tour.to = -1;
   renderInfo(i); renderLocal(); renderBar(); markCards(); plate(s, i); walkerAt(s);
   if (map) map.panTo({lat: s.lat, lng: s.lng});
+  await Promise.race([refine(s), sleep(3000)]);
   await setView(s); setTimeout(hideStill, 2500);
   mochiSay(s.narration);
 }
@@ -379,6 +380,39 @@ function walkerAt(pos){
   if (!walker) walker = new google.maps.Marker({map, zIndex: 999, icon: {url: "/static/mochiko.png", scaledSize: new google.maps.Size(26, 32), anchor: new google.maps.Point(13, 30)}});
   walker.setPosition({lat: pos.lat, lng: pos.lng});
 }
+// 建物の正面が見える「Google が道から撮った写真」を、画面側でえらびなおす（個人の写真を避けられるのは地図の画面側だけ）
+const FACE_DEG = {N: 0, NE: 45, E: 90, SE: 135, S: 180, SW: 225, W: 270, NW: 315};
+function refine(s){
+  if (s.refined) return s.refined;
+  s.refined = (async () => {
+    const c = s.place, center = FACE_DEG[s.facing];
+    if (!c || !window.google) return;
+    const want = center == null ? null : center;
+    if (want == null && s.by_google !== false) return;   // 正面の向きがなく、もともと道の写真なら、そのまま
+    const offs = want == null ? [0, 45, 90, 135, 180, 225, 270, 315] : [0, -12, 12, -25, 25, -40, 40];
+    const dists = want == null ? [25, 50] : [35, 65, 100, 140];
+    const base = want == null ? 0 : want, k = Math.cos(c.lat * Math.PI / 180), jobs = [];
+    for (const o of offs) for (const d of dists) {
+      const br = (base + o) * Math.PI / 180;
+      jobs.push(svGet({location: {lat: c.lat + d * Math.cos(br) / 111320, lng: c.lng + d * Math.sin(br) / (111320 * k)}, radius: 30,
+        sources: [google.maps.StreetViewSource.GOOGLE], preference: google.maps.StreetViewPreference.NEAREST}));
+    }
+    const found = await Promise.all(jobs); let best = null;
+    for (const f of found) {
+      if (!f) continue;
+      const p = {lat: f.location.latLng.lat(), lng: f.location.latLng.lng()}, dist = distM(c, p);
+      if (dist < 12 || dist > 180) continue;
+      const side = want == null ? 0 : angDiff(bearing(c, p), want);
+      if (side > 45) continue;
+      const score = want == null ? dist : side * 3 + Math.abs(dist - 70) / 4;
+      if (!best || score < best.score) best = {score, id: f.location.pano, p, dist};
+    }
+    if (!best) return;
+    s.pano_id = best.id; s.lat = best.p.lat; s.lng = best.p.lng; s.by_google = true;
+    s.heading = Math.round(bearing(best.p, c)); s.pitch = want == null ? 0 : best.dist < 45 ? 16 : best.dist < 90 ? 10 : 6;
+  })().catch(() => {});
+  return s.refined;
+}
 function svGet(req){ return new Promise(res => { try { new google.maps.StreetViewService().getPanorama(req, (d, st) => res(st === "OK" ? d : null)); } catch { res(null); } }); }
 function walkBadge(b, rem, total){
   const w = $("#walking"); w.hidden = false;
@@ -431,7 +465,9 @@ async function arrive(i, my){
   cur = i; tour.at = i; tour.to = -1;
   renderInfo(i); renderLocal(); renderBar(); markCards(); plate(s, i); walkerAt(s);
   if (map) map.panTo({lat: s.lat, lng: s.lng});
-  // 景色が出るまで、もちこは話すのを待つ
+  // 正面の写真をえらびなおして（最大3秒）、景色が出るまで、もちこは話すのを待つ
+  await Promise.race([refine(s), sleep(3000)]);
+  if (my !== tour.token) return false;
   const ready = setView(s);
   const fast = await Promise.race([ready, sleep(1300).then(() => "slow")]);
   if (fast === "slow") { await mochiSay(LOADING); await ready; }
@@ -531,7 +567,7 @@ function onEvent(ev){
     if (ev.name === "wikipedia" && lastStep && /"found": false/.test(ev.summary)) { lastStep.className = "st ng"; lastStep.textContent += " ❌"; }
     if (ev.name === "add_stop" && !ev.stop) addStep("📍 確認が足りず、やり直し", "ng");
     if (ev.stop) {
-      walk.stops.push(ev.stop); const i = walk.stops.length - 1;
+      walk.stops.push(ev.stop); const i = walk.stops.length - 1; refine(ev.stop);
       finishCard(ev.stop, i); drawRoute(); renderBar();
       if (i === 0) { local.pending = loadLocal(ev.stop); if (tour.on) tourFrom(0); else show(0); }
       else markCards();
