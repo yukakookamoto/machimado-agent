@@ -111,6 +111,7 @@ class Walk:
         self.verified: dict[str, dict] = {}   # pano_id -> 確認済みの地点（確認していない地点は追加させない）
         self.result: dict | None = None
         self.tool_calls = 0
+        self.fatal: str | None = None   # 設定の問題など、やり直しても直らないエラー
 
     async def search_places(self, query: str, near_lat: float | None = None, near_lng: float | None = None) -> dict:
         body: dict[str, Any] = {"textQuery": query[:200], "languageCode": "ja", "maxResultCount": 5}
@@ -133,6 +134,9 @@ class Walk:
         q = urllib.parse.urlencode({"location": f"{lat},{lng}", "radius": radius, "source": "outdoor", "key": MAPS_API_KEY})
         r = await self.http.get(f"https://maps.googleapis.com/maps/api/streetview/metadata?{q}")
         d = r.json() if r.status_code == 200 else {"status": f"HTTP {r.status_code}"}
+        if d.get("status") == "REQUEST_DENIED":
+            self.fatal = "ストリートビューの確認が拒否されました（地図の鍵で Street View Static API が使えるようになっていません）。"
+            return {"available": False, "status": "REQUEST_DENIED", "error": "設定の問題です。やり直しても直りません。"}
         if d.get("status") != "OK":
             return {"available": False, "status": d.get("status"), "hint": "半径を広げるか、別の地点にしてください。"}
         loc = d.get("location", {})
@@ -260,6 +264,10 @@ async def run_walk(request: str, trace_id: str) -> AsyncIterator[dict]:
                 if fc.name == "add_stop" and out.get("ok"):
                     ev["stop"] = walk.stops[-1]
                 yield ev
+                if walk.fatal:
+                    log.error(json.dumps({"trace_id": trace_id, "fatal": walk.fatal}, ensure_ascii=False))
+                    yield {"type": "error", "message": walk.fatal}
+                    return
                 replies.append(types.Part.from_function_response(name=fc.name, response=out))
             contents.append(types.Content(role="user", parts=replies))
             if walk.result:
