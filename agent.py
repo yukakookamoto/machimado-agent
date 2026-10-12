@@ -37,6 +37,7 @@ MAX_STEPS = 40          # モデルとのやりとりの上限（暴走よけ）
 MAX_TOOL_CALLS = 60     # 道具の呼び出しの上限
 MAX_STOPS = 8
 HTTP_TIMEOUT = 12.0
+LLM_TIMEOUT = float(os.environ.get("LLM_TIMEOUT", "45"))   # 1回のAIの返事を待つ上限（秒）
 UA = {"User-Agent": "machimado-agent/1.0 (hackathon demo; contact: yukako.okamoto@gmail.com)"}
 
 SYSTEM_PROMPT = """あなたは「まちまど」の散歩案内エージェントです。日本語で話すユーザーのために、
@@ -49,7 +50,8 @@ Googleストリートビューで実際に歩ける「バーチャル海外散�
    - 無い／遠すぎる場合は、半径を広げて再確認するか、別の候補に差し替える。差し替えた理由は短く書く。
 4. 地点どうしはできるだけ歩いて回れる距離（前の地点から2km以内が目安）で、自然な順路にする。
 5. wikipedia で事実を調べ、解説は調べた内容に基づいて書く。わからないことは書かない。
-6. 地点が確定したら add_stop を呼ぶ（ストリートビューの確認が取れた地点だけ）。
+6. 1か所ずつ「探す→確かめる→調べる→add_stop」で進め、確認が取れたらすぐに add_stop を呼ぶ。
+   全部の地点を調べおえてから、まとめて追加しないこと（ユーザーは1か所目から散歩を始めている）。
    - narration: 案内役の「もちこ」（小さくて明るい、白いおもちのような子）が、となりを歩きながら話す口調で書く。
      「〜だよ」「〜なんだって」「見て見て！」のような、やさしい話しことば。見どころ・歴史・現地の暮らしを2〜4文で。
      話しことばでも、事実は調べた内容だけにする。読み上げるので、記号や括弧はなるべく使わない。
@@ -234,10 +236,23 @@ async def run_walk(request: str, trace_id: str) -> AsyncIterator[dict]:
         yield {"type": "start", "trace_id": trace_id, "model": models[0]}
         for step in range(MAX_STEPS):
             resp = None
+            tries = 0
             while models:
                 try:
-                    resp = await client.aio.models.generate_content(model=models[0], contents=contents, config=config)
+                    resp = await asyncio.wait_for(
+                        client.aio.models.generate_content(model=models[0], contents=contents, config=config),
+                        timeout=LLM_TIMEOUT)
                     break
+                except asyncio.TimeoutError:
+                    tries += 1   # 返事が来ないときは、待ちすぎずにやり直す（2回目からは別のモデルも試す）
+                    log.warning(json.dumps({"trace_id": trace_id, "step": step, "timeout": models[0], "tries": tries}))
+                    if tries >= 3:
+                        yield {"type": "error", "message": "AIの返事が来ませんでした。少し待って、もう一度お試しください。"}
+                        return
+                    if tries >= 2 and len(models) > 1:
+                        models.append(models.pop(0))
+                    yield {"type": "note", "text": f"AIの返事が遅いので、もう一度たずねます（{models[0]}）"}
+                    continue
                 except Exception as e:
                     msg = str(e)
                     if any(x in msg for x in ("404", "NOT_FOUND", "not found", "not supported")) and len(models) > 1:
