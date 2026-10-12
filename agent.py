@@ -370,7 +370,7 @@ async def run_walk(request: str, trace_id: str) -> AsyncIterator[dict]:
                         backends.pop(0)
                         backend, client = backends[0]
                         models = list(MODELS)
-                        yield {"type": "note", "text": f"AIの呼び先を {backend} に切りかえました"}
+                        yield {"type": "note", "text": f"AIの呼び先を {backend} に切りかえました（理由：{msg[:220]}）"}
                         continue
                     if any(x in msg for x in ("404", "NOT_FOUND", "not found", "not supported")) and len(models) > 1:
                         log.warning("model %s unavailable, falling back: %s", models[0], msg[:200])
