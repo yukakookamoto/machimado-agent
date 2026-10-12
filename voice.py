@@ -105,9 +105,11 @@ async def synth(text: str, lang_hint: str = "ja", voice: str | None = None) -> b
         except Exception as e:
             log.warning("chirp tts failed (%s): %s", lang, str(e)[:200])
     lang_hint = "ja" if lang == "ja" else "other"
-    if not GEMINI_API_KEY:
+    if not GEMINI_API_KEY and not os.environ.get("VERTEX_PROJECT"):
         raise RuntimeError("GEMINI_API_KEY がありません")
-    client = genai.Client(api_key=GEMINI_API_KEY)
+    vp = os.environ.get("VERTEX_PROJECT", "")
+    client = (genai.Client(vertexai=True, project=vp, location=os.environ.get("VERTEX_LOCATION", "global"))
+              if vp else genai.Client(api_key=GEMINI_API_KEY))
     style = STYLE if lang_hint == "ja" else "旅先で現地の人に話しかけるように、はっきり、ゆっくり読んでください"
     cfg = types.GenerateContentConfig(
         response_modalities=["AUDIO"],

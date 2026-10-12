@@ -31,6 +31,30 @@ log = logging.getLogger("machimado.agent")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 MAPS_API_KEY = os.environ.get("MAPS_API_KEY", "")
 # 新しいモデルから順に試す（使えないモデルなら次へ）
+# Gemini の呼び先：Google Cloud の Vertex AI（Cloud Run 自身の身分で呼び、料金は Google Cloud の請求＝クレジットから）
+# を先に使い、だめなら AI Studio のキーで呼ぶ
+VERTEX_PROJECT = os.environ.get("VERTEX_PROJECT", "")
+VERTEX_LOCATION = os.environ.get("VERTEX_LOCATION", "global")
+
+
+def gemini_backends() -> list[tuple[str, genai.Client]]:
+    out = []
+    if VERTEX_PROJECT:
+        try:
+            out.append(("Vertex AI", genai.Client(vertexai=True, project=VERTEX_PROJECT, location=VERTEX_LOCATION)))
+        except Exception as e:
+            log.warning("vertex client failed: %s", e)
+    if GEMINI_API_KEY:
+        out.append(("Gemini API", genai.Client(api_key=GEMINI_API_KEY)))
+    return out
+
+
+def _backend_broken(msg: str) -> bool:
+    """呼び先そのものが使えない（権限・API未有効・残高切れ）ときは、別の呼び先に切りかえる"""
+    return any(x in msg for x in ("PERMISSION_DENIED", "403", "401", "UNAUTHENTICATED", "SERVICE_DISABLED",
+                                  "has not been used", "402", "prepayment", "billing", "credentials"))
+
+
 MODELS = [m.strip() for m in os.environ.get("GEMINI_MODELS", "gemini-3.8-flash,gemini-3.6-flash,gemini-2.5-flash").split(",") if m.strip()]
 
 MAX_STEPS = 40          # モデルとのやりとりの上限（暴走よけ）
@@ -306,10 +330,11 @@ def _short(d: Any, n: int = 260) -> str:
 
 async def run_walk(request: str, trace_id: str) -> AsyncIterator[dict]:
     """散歩をつくる。途中経過を event（dict）として順に返す。"""
-    if not GEMINI_API_KEY or not MAPS_API_KEY:
+    backends = gemini_backends()
+    if not backends or not MAPS_API_KEY:
         yield {"type": "error", "message": "サーバーの設定（APIキー）が足りません。"}
         return
-    client = genai.Client(api_key=GEMINI_API_KEY)
+    backend, client = backends[0]
     t0 = time.time()
     async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as http:
         walk = Walk(http)
@@ -318,7 +343,7 @@ async def run_walk(request: str, trace_id: str) -> AsyncIterator[dict]:
             system_instruction=SYSTEM_PROMPT, tools=TOOLS, temperature=0.6,
             automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True))
         models = list(MODELS)
-        yield {"type": "start", "trace_id": trace_id, "model": models[0]}
+        yield {"type": "start", "trace_id": trace_id, "model": f"{models[0]}・{backend}"}
         for step in range(MAX_STEPS):
             resp = None
             tries = 0
@@ -340,6 +365,13 @@ async def run_walk(request: str, trace_id: str) -> AsyncIterator[dict]:
                     continue
                 except Exception as e:
                     msg = str(e)
+                    if _backend_broken(msg) and len(backends) > 1:
+                        log.warning(json.dumps({"trace_id": trace_id, "backend_failed": backend, "error": msg[:300]}, ensure_ascii=False))
+                        backends.pop(0)
+                        backend, client = backends[0]
+                        models = list(MODELS)
+                        yield {"type": "note", "text": f"AIの呼び先を {backend} に切りかえました"}
+                        continue
                     if any(x in msg for x in ("404", "NOT_FOUND", "not found", "not supported")) and len(models) > 1:
                         log.warning("model %s unavailable, falling back: %s", models[0], msg[:200])
                         models.pop(0)

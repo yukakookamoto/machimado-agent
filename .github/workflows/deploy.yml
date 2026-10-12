@@ -34,6 +34,6 @@ jobs:
         run: |
           gcloud run deploy "$SERVICE" --image "$IMAGE" --region "$REGION" \
             --cpu 1 --memory 512Mi --concurrency 20 --timeout 300 --min-instances 0 --max-instances 3 \
-            --set-env-vars "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }},MAPS_API_KEY=${{ secrets.MAPS_API_KEY }}" \
+            --set-env-vars "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }},MAPS_API_KEY=${{ secrets.MAPS_API_KEY }},VERTEX_PROJECT=${{ secrets.GCP_PROJECT_ID }},VERTEX_LOCATION=global" \
             --no-invoker-iam-check --quiet
           gcloud run services describe "$SERVICE" --region "$REGION" --format='value(status.url)'
