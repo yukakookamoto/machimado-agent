@@ -91,6 +91,9 @@ body.big #pano{aspect-ratio:auto;height:100vh}
 body.big .bubble{font-size:16.5px;max-height:8.5em}
 body.big .mochi-body{width:104px;height:128px}
 body.big .mochi-body img{width:78px}
+body.space .mapbox{display:none}
+.chip.rocket{background:linear-gradient(90deg,#1d2b53,#3a2f6b);color:#fff;border-color:transparent}
+.spacepill{position:absolute;top:12px;left:14px;z-index:6;background:rgba(20,24,60,.8);color:#fff;border-radius:999px;padding:4px 12px;font-size:13px;pointer-events:none}
 #map.mini{position:absolute;right:14px;bottom:34px;width:260px;height:190px;z-index:6;border:3px solid #fff;box-shadow:0 4px 16px rgba(0,0,0,.3)}
 
 /* 地図 */
@@ -133,6 +136,7 @@ aside{display:grid;gap:16px;align-content:start}
     <div class="askbar"><input id="req" maxlength="300" placeholder="どこを、どんなふうに歩きたい？　例：パリで朝市と古い路地を30分"><button class="go" id="go">出発する</button></div>
   </div>
   <div class="presets" id="presets">
+    <button class="chip rocket">🚀 国際宇宙ステーション（ISS）を散歩する</button>
     <button class="chip">パリの朝市と古い路地を30分</button>
     <button class="chip">ロンドンの古本屋さんめぐり</button>
     <button class="chip">ニューヨークで映画のロケ地を歩く</button>
@@ -149,6 +153,7 @@ aside{display:grid;gap:16px;align-content:start}
         <div id="pano">行き先を入れて「出発する」を押してください</div>
         <img id="still" alt="">
         <div class="local" id="local" hidden></div>
+        <div class="spacepill" id="spacepill" hidden>🛰 国際宇宙ステーション・地上から約400km（写真は2017年）</div>
         <div class="plate" id="plate"></div>
         <div class="walking" id="walking" hidden></div>
         <button class="bigbtn" id="bigBtn" hidden>⛶ 大きな画面で歩く</button>
@@ -197,6 +202,7 @@ const NOW = {   // [足あとに出す文, もちこが言う文]
   search_places: a => [`「${cut(a.query, 30)}」をさがしています`, `いま「${cut(a.query, 24)}」をさがしているよ`],
   check_street_view: a => a.facing ? ["建物の正面が見える通りをさがしています", "正面から見られる場所をさがしているよ"] : ["その場所を、通りから見られるか確かめています", "通りから見られるか、確かめているよ"],
   wikipedia: a => [`Wikipediaで「${cut(a.title, 24)}」を調べています`, `「${cut(a.title, 20)}」のこと、調べているよ`],
+  look: a => [`写真 #${a.index} を見て、ここがどこか確かめています`, `いま写真を見て、ここがどこか考えているよ`],
   add_stop: a => [`「${cut(a.name, 24)}」を立ち寄り先に決めました`, `「${cut(a.name, 20)}」に決めたよ！`],
   finish_walk: () => ["散歩道を仕上げています", "もうすぐ散歩道ができあがるよ"],
 };
@@ -286,7 +292,7 @@ async function show(i){
   mochiSay(s.narration);
 }
 function goTo(i){ if (tour.on) tourFrom(i); else { tourStop(); show(i); } }
-function guessLang(t){ t = t || ""; if (/[àâçéèêëîïôûùüÿœ]/i.test(t)) return "fr-FR"; if (/[¿¡ñ]/.test(t)) return "es-ES"; if (/[äöüß]/i.test(t)) return "de-DE"; if (/[一-鿿]/.test(t)) return "zh-TW"; if (/[àèìòù]/i.test(t)) return "it-IT"; return "en-US"; }
+function guessLang(t){ t = t || ""; if (/[А-яЁё]/.test(t)) return "ru-RU"; if (/[àâçéèêëîïôûùüÿœ]/i.test(t)) return "fr-FR"; if (/[¿¡ñ]/.test(t)) return "es-ES"; if (/[äöüß]/i.test(t)) return "de-DE"; if (/[一-鿿]/.test(t)) return "zh-TW"; if (/[àèìòù]/i.test(t)) return "it-IT"; return "en-US"; }
 
 // ================= 現地の時間と天気 =================
 const local = {key: "", data: null, timer: null, say: null, pending: null};
@@ -429,7 +435,23 @@ function walkBadge(b, rem, total){
   const pct = total ? Math.max(0, Math.min(100, 100 - rem / total * 100)) : 0;
   w.innerHTML = `🚶 ${esc(cut(b.name, 16))} へ <span class="bar"><i style="width:${pct}%"></i></span> あと${Math.max(0, Math.round(rem))}m`;
 }
+async function floatTo(a, b, my){
+  // 宇宙：写真のつながり（道順）に沿って、ふわふわ進む
+  tour.to = walk.stops.indexOf(b); tour.at = -1; markCards(); hideStill();
+  mochiSay(`次は${b.name}だよ。ふわっと移動しよう！`);
+  const path = b.path || [];
+  for (let k = 0; k < path.length; k++) {
+    if (my !== tour.token) return false;
+    const next = k + 1 < path.length ? path[k + 1].pano_id : b.pano_id;
+    $("#walking").hidden = false; $("#walking").innerHTML = `🧑‍🚀 ${esc(cut(b.name, 16))} へ <span class="bar"><i style="width:${Math.round((k + 1) / path.length * 100)}%"></i></span> ${k + 1}/${path.length}`;
+    pano.setPano(next); pano.setPov({heading: path[k].heading, pitch: 0, zoom: 1}); step();
+    await sleep(800);
+  }
+  $("#walking").hidden = true; tour.to = -1;
+  return my === tour.token;
+}
 async function walkTo(a, b, my){
+  if (b.space) return floatTo(a, b, my);
   // 道の写真のつながり（リンク）をたどって、本当に通りを歩いていく
   tour.to = walk.stops.indexOf(b); tour.at = -1; markCards();
   hideStill();
@@ -530,6 +552,7 @@ async function go(){
   $("#go").disabled = true; $("#cards").innerHTML = ""; $("#stats").textContent = ""; work = null;
   walk = {stops: []}; cur = -1; tour.at = -1; renderBar(); tourStop();
   local.key = ""; local.data = null; local.say = null; $("#local").hidden = true;
+  document.body.classList.remove("space"); $("#spacepill").hidden = true;
   if (trail) trail.setPath([]);
   mochiSay("もちこだよ。いっしょに歩く道を、いま探してるね。ちょっと待っててね！");
   setNow(`<span class="spin"></span> 散歩の計画を立てています`);
@@ -552,6 +575,7 @@ async function go(){
 let lastTool = null, lastStep = null;
 const FACE = {N: "北", NE: "北東", E: "東", SE: "南東", S: "南", SW: "南西", W: "西", NW: "北西"};
 function onEvent(ev){
+  if (ev.type === "start" && ev.mode === "space") { document.body.classList.add("space"); $("#spacepill").hidden = false; local.say = "宇宙に来たよ！ここは地上から約400キロ、国際宇宙ステーションの中だよ。ふわふわ浮かびながら見てまわろうね。"; fetchVoice(local.say); }
   if (ev.type === "start") setNow(`<span class="spin"></span> 散歩の計画を立てています <small class="meta">（${esc(ev.model)}）</small>`);
   else if (ev.type === "think") {
     if (!work) newWork();
@@ -566,6 +590,7 @@ function onEvent(ev){
     if (ev.name === "search_places") lastStep = addStep(`🔎 ${cut(a.query, 18)}`, "", a.query);
     else if (ev.name === "check_street_view") lastStep = addStep(a.facing ? `🎯 正面（${FACE[a.facing] || a.facing}向き）から見られる？` : "📷 通りから見られる？", "", `${(+a.lat).toFixed(4)}, ${(+a.lng).toFixed(4)}`);
     else if (ev.name === "wikipedia") lastStep = addStep(`📚 ${cut(a.title, 16)}`, "", `Wikipedia（${a.lang || "ja"}）`);
+    else if (ev.name === "look") lastStep = addStep(`👀 写真 #${a.index}`, "", "Gemini が写真を見て判断");
     else lastStep = null;
   }
   else if (ev.type === "result") {
@@ -574,12 +599,13 @@ function onEvent(ev){
       if (ev.ok) { lastStep.className = "st ok"; lastStep.textContent = info.facade_view ? "🎯 ✅ 正面から見られる" : info.by_google === false ? "📷 ✅ 見られる（個人の写真）" : "📷 ✅ 見られる"; }
       else { lastStep.className = "st ng"; lastStep.textContent = "📷 ❌ 写真なし → 差しかえ"; }
     }
+    if (ev.name === "look" && lastStep) { const m = ev.summary.match(/場所の見当：([^\\"\n]+)/); if (m) { lastStep.className = "st ok"; lastStep.textContent += " → " + cut(m[1].replace(/[（(].*$/, ""), 18); lastStep.title = ev.summary; } }
     if (ev.name === "wikipedia" && lastStep && /"found": false/.test(ev.summary)) { lastStep.className = "st ng"; lastStep.textContent += " ❌"; }
     if (ev.name === "add_stop" && !ev.stop) addStep("📍 確認が足りず、やり直し", "ng");
     if (ev.stop) {
       walk.stops.push(ev.stop); const i = walk.stops.length - 1; refine(ev.stop);
       finishCard(ev.stop, i); drawRoute(); renderBar();
-      if (i === 0) { local.pending = loadLocal(ev.stop); if (tour.on) tourFrom(0); else show(0); }
+      if (i === 0) { if (!ev.stop.space) local.pending = loadLocal(ev.stop); if (tour.on) tourFrom(0); else show(0); }
       else markCards();
     }
   }
@@ -590,7 +616,7 @@ function onEvent(ev){
     const st = ev.walk.stats || {};
     setNow(`✅ 「${esc(walk.title)}」ができました（${walk.stops.length}か所）`, "done");
     $("#stats").textContent = `${st.seconds}秒・道具を${st.tool_calls}回使用・${st.model}`;
-    if (cur < 0 && walk.stops.length) { local.pending = loadLocal(walk.stops[0]); if (tour.on) tourFrom(0); else show(0); }
+    if (cur < 0 && walk.stops.length) { if (!walk.stops[0].space) local.pending = loadLocal(walk.stops[0]); if (tour.on) tourFrom(0); else show(0); }
   }
   else if (ev.type === "error") fail(ev.message);
 }

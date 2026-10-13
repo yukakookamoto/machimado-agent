@@ -26,6 +26,8 @@ import httpx
 from google import genai
 from google.genai import types
 
+import space
+
 log = logging.getLogger("machimado.agent")
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
@@ -337,14 +339,18 @@ async def run_walk(request: str, trace_id: str) -> AsyncIterator[dict]:
     backend, client = backends[0]
     t0 = time.time()
     async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as http:
-        walk = Walk(http)
+        is_space = space.is_space(request)
+        walk = space.SpaceWalk(http, MAPS_API_KEY, Walk(http).wikipedia) if is_space else Walk(http)
         contents: list[types.Content] = [types.Content(role="user", parts=[types.Part.from_text(text=request)])]
         config = types.GenerateContentConfig(
-            system_instruction=SYSTEM_PROMPT, tools=TOOLS, temperature=0.6,
+            system_instruction=space.SPACE_PROMPT if is_space else SYSTEM_PROMPT,
+            tools=space.SPACE_TOOLS if is_space else TOOLS, temperature=0.6,
             automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True))
         models = list(MODELS)
-        yield {"type": "start", "trace_id": trace_id, "model": f"{models[0]}・{backend}"}
+        yield {"type": "start", "trace_id": trace_id, "model": f"{models[0]}・{backend}", "mode": "space" if is_space else "earth"}
         for step in range(MAX_STEPS):
+            if is_space:   # 写真を見る道具も、いまの呼び先とモデルを使う
+                walk.client, walk.models = client, models
             resp = None
             tries = 0
             while models:
@@ -416,7 +422,7 @@ async def run_walk(request: str, trace_id: str) -> AsyncIterator[dict]:
                 break
         if not walk.result:
             if len(walk.stops) >= 3:   # 上限に達したら、ある地点でまとめる
-                walk.result = {"title": "まちまど散歩", "intro": "", "stops": walk.stops}
+                walk.result = {"title": "まちまど散歩", "intro": "", "stops": walk.stops, "space": is_space}
             else:
                 yield {"type": "error", "message": "散歩コースを作りきれませんでした。言い方を変えて、もう一度お試しください。"}
                 return

@@ -67,7 +67,7 @@ MAPS_API_KEY = os.environ.get("MAPS_API_KEY", "")   # この鍵で Cloud Text-to
 CHIRP_VOICE = os.environ.get("MOCHIKO_CHIRP", "Aoede")   # Chirp 3 HD の声の名前（Aoede / Leda / Kore / Zephyr など）
 CHIRP_NAMES = {"Aoede", "Leda", "Kore", "Zephyr", "Callirrhoe", "Despina", "Erinome", "Laomedeia", "Pulcherrima", "Vindemiatrix",
                "Achernar", "Autonoe", "Gacrux", "Sulafat", "Puck", "Charon", "Fenrir", "Orus"}
-LOCALES = {"ja": "ja-JP", "fr": "fr-FR", "en": "en-US", "it": "it-IT", "es": "es-ES", "de": "de-DE", "zh": "cmn-CN", "ko": "ko-KR", "pt": "pt-BR"}
+LOCALES = {"ja": "ja-JP", "fr": "fr-FR", "en": "en-US", "it": "it-IT", "es": "es-ES", "de": "de-DE", "zh": "cmn-CN", "ko": "ko-KR", "pt": "pt-BR", "ru": "ru-RU"}
 
 
 async def _chirp(text: str, locale: str, voice: str) -> bytes:
