@@ -74,7 +74,7 @@ Googleストリートビューで実際に歩ける「バーチャル海外散�
 1. 依頼から、街・テーマ・時間（なければ30分程度＝5〜6か所）を決める。
 2. 立ち寄り先の候補を考え、search_places で実在と正確な位置を確かめる。
 3. 各地点で check_street_view を、search_places で得た「その場所の緯度経度」と name（写っていてほしいものの名前）で呼ぶ。
-   道具が候補の写真を実際に見て、目的の場所が写っているものをえらぶ。
+   features には、その場所の外から見てわかる特徴を書く。道具が候補の写真を実際に見て、その特徴が写っているものをえらぶ。
    - visible が yes なら採用。partly なら、seen に書かれた「実際に写っているもの」に合わせて解説を書く。
    - visible が no なら、その地点は採用しない（別の候補・別の場所にする）。
    - 無い／遠すぎる（distance_m が 80m 以上）場合は、半径を広げて再確認するか、別の候補に差し替える。差し替えた理由は短く書く。
@@ -118,7 +118,9 @@ TOOLS = [types.Tool(function_declarations=[
          "facing": S("建物・駅・教会などの正面（おもな入口）が向いている方角。N / NE / E / SE / S / SW / W / NW のどれか。"
                      "わかるときは必ず入れる（例：ニューヨーク公共図書館の本館は五番街に面して E、グランド・セントラル駅の正面は42丁目に面して S）。"
                      "広場・通り・公園など正面がない場所では省略"),
-         "name": S("写真に写っていてほしいものの名前（現地語か英語。例：'Sagrada Família', 'New York Public Library'）。必ず入れる")}, ["lat", "lng", "name"]),
+         "name": S("写真に写っていてほしいものの名前（現地語か英語。例：'Sagrada Família', 'New York Public Library'）。必ず入れる"),
+         "features": S("その場所の、外から見てわかる特徴（例：'カラフルな波打つ外壁と骨のようなバルコニー'、'とがった塔が何本も立つ石の教会'）。必ず入れる")},
+        ["lat", "lng", "name", "features"]),
     _fd("wikipedia", "Wikipediaの要約を調べる。事実の確認に使う。",
         {"title": S("記事名"), "lang": S("言語コード（ja / en / fr / it / es / de など）")}, ["title"]),
     _fd("add_stop", "確認が取れた立ち寄り先を、散歩コースに確定して追加する。",
@@ -257,7 +259,7 @@ class Walk:
             out.append({**c, "_dist": dist, "_score": score, "_google": google})
         return sorted(out, key=lambda x: x["_score"])
 
-    async def _see_view(self, pano_id: str, heading: int, pitch: int, name: str) -> dict | None:
+    async def _see_view(self, pano_id: str, heading: int, pitch: int, name: str, features: str = "") -> dict | None:
         """その写真に、目的の場所がちゃんと写っているかを Gemini の目で確かめる"""
         if not getattr(self, "client", None):
             return None
@@ -265,16 +267,18 @@ class Walk:
         r = await self.http.get(f"https://maps.googleapis.com/maps/api/streetview?{q}")
         if r.status_code != 200 or not r.headers.get("content-type", "").startswith("image"):
             return None
-        prompt = (f"これはストリートビューの1枚です。「{name}」が、この写真の主役としてはっきり写っていますか？\n"
-                  "visible：yes（はっきり写っている）／partly（一部だけ・遠い・手前の物でかなり隠れている）／no（写っていない・建物の中・別の場所）\n"
-                  "seen：実際に写っているものを日本語で1〜2文（建物の特徴・お店・木・車など）")
+        prompt = (f"これはストリートビューの1枚です。「{name}」が、この写真の中央付近に主役としてはっきり写っているかを、厳しく判定してください。\n"
+                  + (f"「{name}」の見た目の特徴：{features}\n" if features else "")
+                  + "その特徴が実際に見えるときだけ yes。となりの建物・ふつうの建物・お店しか見えないときは no。\n"
+                  "visible：yes（特徴がはっきり見える）／partly（一部だけ・遠い・手前の物でかなり隠れている）／no（写っていない・別の建物・建物の中）\n"
+                  "seen：実際に写っているものを日本語で1〜2文（建物の色・形・お店・木・車など）")
         schema = {"type": "OBJECT", "properties": {"visible": {"type": "STRING", "enum": ["yes", "partly", "no"]},
                                                    "seen": {"type": "STRING"}}, "required": ["visible", "seen"]}
         for m in VISION_MODELS:
             try:
                 kw = {"response_mime_type": "application/json", "response_schema": schema}
                 if m.startswith("gemini-2.5"):
-                    kw["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
+                    kw["thinking_config"] = types.ThinkingConfig(thinking_budget=512)
                 resp = await self.client.aio.models.generate_content(
                     model=m, contents=[types.Part.from_bytes(data=r.content, mime_type="image/jpeg"), prompt],
                     config=types.GenerateContentConfig(**kw))
@@ -285,7 +289,7 @@ class Walk:
         return None
 
     async def check_street_view(self, lat: float, lng: float, radius_m: float = 50, facing: str | None = None,
-                                name: str | None = None) -> dict:
+                                name: str | None = None, features: str | None = None) -> dict:
         radius = int(max(10, min(1000, radius_m or 50)))
         cands = await self._candidates(lat, lng, radius, facing)
         if cands and cands[0].get("status") == "REQUEST_DENIED":
@@ -307,7 +311,7 @@ class Walk:
         chosen, checked, look = cands[0], [], None
         if name:
             top = cands[:6]
-            views = await asyncio.gather(*[self._see_view(c["pano_id"], *view_of(c), name) for c in top], return_exceptions=True)
+            views = await asyncio.gather(*[self._see_view(c["pano_id"], *view_of(c), name, features or "") for c in top], return_exceptions=True)
             rank = {"yes": 0, "partly": 1, "no": 2}
             scored = [(rank.get((v or {}).get("visible", "no"), 2), i, c, v) for i, (c, v) in enumerate(zip(top, views))
                       if isinstance(v, dict)]
@@ -389,7 +393,7 @@ class Walk:
         if not fn:
             return {"error": f"知らない道具です: {name}"}
         try:
-            return await asyncio.wait_for(fn(**args), timeout=HTTP_TIMEOUT + 3)
+            return await asyncio.wait_for(fn(**args), timeout=45 if name == "check_street_view" else HTTP_TIMEOUT + 3)
         except TypeError as e:
             return {"error": f"引数がちがいます: {e}"}
         except Exception as e:  # 外のAPIのエラーはエージェントに返して判断させる
