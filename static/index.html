@@ -61,8 +61,11 @@ footer{padding:0 24px 24px;font-size:12px;color:var(--ink2)}
 .view{position:relative;background:#1b1814}
 #pano{width:100%;height:min(calc((100vw - 424px) * .5625), calc(100vh - 330px));min-height:340px;background:linear-gradient(135deg,#d9cdb8,#efe5d3);display:grid;place-items:center;color:var(--ink2);font-size:14px}
 @media (prefers-color-scheme:dark){#pano{background:linear-gradient(135deg,#2b261f,#3a3329)}}
-#still{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .6s;pointer-events:none;z-index:2}
-#still.on{opacity:1}
+/* 景色の写真を2枚重ね、次の写真が届いてからふわっと入れかえる（読み込み中に黒い画面を出さない） */
+.still{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .5s;pointer-events:none;z-index:2}
+.still.on{opacity:1}
+.still.push{animation:push 1.1s ease-out both}
+@keyframes push{from{transform:scale(1)}to{transform:scale(1.06)}}
 .walking{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:rgba(43,38,32,.78);color:#fff;border-radius:999px;padding:6px 16px;font-size:13.5px;z-index:6;pointer-events:none;white-space:nowrap;display:flex;gap:10px;align-items:center}
 .walking .bar{width:90px;height:6px;border-radius:3px;background:rgba(255,255,255,.25);overflow:hidden}
 .walking .bar i{display:block;height:100%;background:#F2B36B;width:0}
@@ -151,7 +154,7 @@ aside{display:grid;gap:16px;align-content:start}
       <div class="stopbar" id="stopbar" hidden></div>
       <div class="view" id="view">
         <div id="pano">行き先を入れて「出発する」を押してください</div>
-        <img id="still" alt="">
+        <img id="still" class="still" alt=""><img id="still2" class="still" alt="">
         <div class="local" id="local" hidden></div>
         <div class="spacepill" id="spacepill" hidden>🛰 国際宇宙ステーション・地上から約400km（写真は2017年）</div>
         <div class="plate" id="plate"></div>
@@ -253,23 +256,32 @@ function drawRoute(){
   if (path.length && !tour.driving) { const b = new google.maps.LatLngBounds(); path.forEach(p => b.extend(p)); map.fitBounds(b, 30); if (path.length === 1) map.setZoom(16); }
 }
 function stillUrl(id, heading, pitch){ return `https://maps.googleapis.com/maps/api/streetview?size=640x360&scale=2&pano=${encodeURIComponent(id)}&heading=${Math.round(heading || 0)}&pitch=${Math.round(pitch || 0)}&fov=90&key=${encodeURIComponent(mapsKey)}`; }
-// 地点の画像を出す。まず静止画（すぐ出る）を重ね、ストリートビューが読みこまれたら外す。読みこめたら true
+// ---- 景色の写真（2枚を重ねて入れかえ、黒い画面を出さない） ----
+let stillTop = null;
+function preload(url, ms = 5000){
+  return new Promise(res => { const im = new Image(); const t = setTimeout(() => res(false), ms);
+    im.onload = () => { clearTimeout(t); res(true); }; im.onerror = () => { clearTimeout(t); res(false); }; im.src = url; });
+}
+// 写真を読みこみ終えてから、いまの写真の上にふわっと重ねる。読みこめなければ、いまの写真をそのまま残す
+async function showStill(url, push){
+  if (!(await preload(url))) return false;
+  const a = $("#still"), b = $("#still2"), next = stillTop === a ? b : a, prev = stillTop;
+  next.classList.remove("push"); void next.offsetWidth;
+  next.src = url; next.style.zIndex = 3; if (prev) prev.style.zIndex = 2;
+  next.classList.add("on"); if (push) next.classList.add("push");
+  stillTop = next;
+  if (prev && prev !== next) setTimeout(() => { if (stillTop !== prev) prev.classList.remove("on", "push"); }, 550);
+  return true;
+}
+function hideStill(){ for (const el of [$("#still"), $("#still2")]) el.classList.remove("on", "push"); stillTop = null; }
+// 地点の景色を出す。まず写真（すぐ出る）を重ね、うしろでストリートビューを用意する。写真が出せたら true
 function setView(s){
   const pov = {heading: s.heading || 0, pitch: s.pitch || 0, zoom: 1};
   if (!pano) { $("#pano").innerHTML = ""; pano = new google.maps.StreetViewPanorama($("#pano"), {pano: s.pano_id, pov, zoom: 1, addressControl: false, fullscreenControl: false, motionTracking: false, linksControl: true});
-    pano.addListener("pano_changed", () => {}); $("#pano").addEventListener("pointerdown", hideStill); }
+    $("#pano").addEventListener("pointerdown", hideStill); }
   else { pano.setPano(s.pano_id); pano.setPov(pov); }
-  const img = $("#still");
-  return new Promise(res => {
-    let t = setTimeout(() => res(false), 9000);
-    img.onload = () => { clearTimeout(t); img.classList.add("on"); res(true); };
-    img.onerror = () => { clearTimeout(t); res(false); };
-    const url = stillUrl(s.pano_id, s.heading, s.pitch);
-    if (img.src === url && img.complete && img.naturalWidth) { clearTimeout(t); img.classList.add("on"); res(true); return; }
-    img.src = url;
-  });
+  return Promise.race([showStill(stillUrl(s.pano_id, s.heading, s.pitch)), sleep(9000).then(() => false)]);
 }
-function hideStill(){ $("#still").classList.remove("on"); }
 function plate(s, i){ const p = $("#plate"); p.innerHTML = `📍 ${i + 1}. ${esc(s.name)}${s.local_name ? `<small>${esc(s.local_name)}</small>` : ""}`; p.classList.add("on"); clearTimeout(plate.t); plate.t = setTimeout(() => p.classList.remove("on"), 5000); }
 function renderInfo(i){
   const s = walk.stops[i]; if (!s) return;
@@ -438,15 +450,17 @@ function walkBadge(b, rem, total){
 }
 async function floatTo(a, b, my){
   // 宇宙：写真のつながり（道順）に沿って、ふわふわ進む
-  tour.to = walk.stops.indexOf(b); tour.at = -1; markCards(); hideStill();
+  tour.to = walk.stops.indexOf(b); tour.at = -1; markCards();
   mochiSay(`次は${b.name}だよ。ふわっと移動しよう！`);
   const path = b.path || [];
   for (let k = 0; k < path.length; k++) {
     if (my !== tour.token) return false;
     const next = k + 1 < path.length ? path[k + 1].pano_id : b.pano_id;
     $("#walking").hidden = false; $("#walking").innerHTML = `🧑‍🚀 ${esc(cut(b.name, 16))} へ <span class="bar"><i style="width:${Math.round((k + 1) / path.length * 100)}%"></i></span> ${k + 1}/${path.length}`;
+    await showStill(stillUrl(next, path[k].heading, 0), true);   // 次の写真が届いてから入れかえる
+    if (my !== tour.token) return false;
     pano.setPano(next); pano.setPov({heading: path[k].heading, pitch: 0, zoom: 1}); step();
-    await sleep(800);
+    await sleep(450);
   }
   $("#walking").hidden = true; tour.to = -1;
   return my === tour.token;
@@ -455,7 +469,7 @@ async function walkTo(a, b, my){
   if (b.space) return floatTo(a, b, my);
   // 道の写真のつながり（リンク）をたどって、本当に通りを歩いていく
   tour.to = walk.stops.indexOf(b); tour.at = -1; markCards();
-  hideStill();
+  if (!stillTop) await showStill(stillUrl(a.pano_id, (pano && pano.getPov().heading) || a.heading || 0, 0));   // いまの景色を写真で押さえておく
   let pos = {lat: a.lat, lng: a.lng}, id = a.pano_id;
   const total = distM(pos, b), seen = new Set([id]);
   const STEPS = 12, path = [pos];
@@ -484,11 +498,14 @@ async function walkTo(a, b, my){
     if (!next) break;
     const np = {lat: next.location.latLng.lat(), lng: next.location.latLng.lng()};
     const head = bearing(pos, np);
+    const ok = await showStill(stillUrl(next.location.pano, head, 0), true);   // 次の写真が届いてから入れかえる
+    if (my !== tour.token) return false;
+    if (!ok) { seen.add(next.location.pano); continue; }   // 写真が取れなければ、その一歩はとばす（黒い画面を出さない）
     id = next.location.pano; seen.add(id); pos = np; path.push(np);
     pano.setPano(id); pano.setPov({heading: head, pitch: 0, zoom: 1}); step();
     walkerAt(pos); trail.setPath(path); if (map) map.panTo(pos);
     walkBadge(b, distM(pos, b), total);
-    await sleep(750);
+    await sleep(450);
   }
   $("#walking").hidden = true; tour.to = -1;
   return my === tour.token;
