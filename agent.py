@@ -401,10 +401,20 @@ async def run_walk(request: str, trace_id: str) -> AsyncIterator[dict]:
                     text="まだ散歩が完成していません。道具を使って続け、最後に finish_walk を呼んでください。")]))
                 continue
             replies = []
+            # 読むだけの道具（見る・調べる・探す）が並んだときは、まとめて同時に行う（待ち時間を短く）
+            pre = {}
+            if len(calls) > 1 and all(fc.name in ("look", "wikipedia", "search_places") for fc in calls):
+                for fc in calls:
+                    yield {"type": "tool", "name": fc.name, "args": dict(fc.args or {})}
+                outs = await asyncio.gather(*[walk.call(fc.name, dict(fc.args or {})) for fc in calls])
+                pre = {id(fc): o for fc, o in zip(calls, outs)}
             for fc in calls:
                 args = dict(fc.args or {})
-                yield {"type": "tool", "name": fc.name, "args": args}
-                out = await walk.call(fc.name, args)
+                if id(fc) in pre:
+                    out = pre[id(fc)]
+                else:
+                    yield {"type": "tool", "name": fc.name, "args": args}
+                    out = await walk.call(fc.name, args)
                 log.info(json.dumps({"trace_id": trace_id, "step": step, "tool": fc.name, "args": args, "result": out}, ensure_ascii=False)[:2000])
                 ev = {"type": "result", "name": fc.name, "summary": _short(out)}
                 if fc.name == "check_street_view":

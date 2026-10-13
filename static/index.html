@@ -549,6 +549,7 @@ document.addEventListener("keydown", e => { if (e.key === "Escape" && document.b
 // ================= 出発 =================
 async function go(){
   const text = $("#req").value.trim(); if (!text) { $("#req").focus(); return; }
+  pendingSteps = [];
   $("#go").disabled = true; $("#cards").innerHTML = ""; $("#stats").textContent = ""; work = null;
   walk = {stops: []}; cur = -1; tour.at = -1; renderBar(); tourStop();
   local.key = ""; local.data = null; local.say = null; $("#local").hidden = true;
@@ -572,7 +573,7 @@ async function go(){
   }
   $("#go").disabled = false;
 }
-let lastTool = null, lastStep = null;
+let lastTool = null, lastStep = null, pendingSteps = [];
 const FACE = {N: "北", NE: "北東", E: "東", SE: "南東", S: "南", SW: "南西", W: "西", NW: "北西"};
 function onEvent(ev){
   if (ev.type === "start" && ev.mode === "space") { document.body.classList.add("space"); $("#spacepill").hidden = false; local.say = "宇宙に来たよ！ここは地上から約400キロ、国際宇宙ステーションの中だよ。ふわふわ浮かびながら見てまわろうね。"; fetchVoice(local.say); }
@@ -592,14 +593,16 @@ function onEvent(ev){
     else if (ev.name === "wikipedia") lastStep = addStep(`📚 ${cut(a.title, 16)}`, "", `Wikipedia（${a.lang || "ja"}）`);
     else if (ev.name === "look") lastStep = addStep(`👀 写真 #${a.index}`, "", "Gemini が写真を見て判断");
     else lastStep = null;
+    pendingSteps.push(lastStep);
   }
   else if (ev.type === "result") {
+    lastStep = pendingSteps.length ? pendingSteps.shift() : lastStep;
     if (ev.name === "check_street_view" && lastStep) {
       let info = {}; try { info = JSON.parse(ev.summary.replace(/…$/, "")); } catch {}
       if (ev.ok) { lastStep.className = "st ok"; lastStep.textContent = info.facade_view ? "🎯 ✅ 正面から見られる" : info.by_google === false ? "📷 ✅ 見られる（個人の写真）" : "📷 ✅ 見られる"; }
       else { lastStep.className = "st ng"; lastStep.textContent = "📷 ❌ 写真なし → 差しかえ"; }
     }
-    if (ev.name === "look" && lastStep) { const m = ev.summary.match(/場所の見当：([^\\"\n]+)/); if (m) { lastStep.className = "st ok"; lastStep.textContent += " → " + cut(m[1].replace(/[（(].*$/, ""), 18); lastStep.title = ev.summary; } }
+    if (ev.name === "look" && lastStep) { const m = ev.summary.replace(/\*/g, "").match(/場所の見当：\s*([^\\"\n]+)/); if (m) { lastStep.className = "st ok"; lastStep.textContent += " → " + cut(m[1].replace(/[（(、。].*$/, ""), 18); lastStep.title = ev.summary; } }
     if (ev.name === "wikipedia" && lastStep && /"found": false/.test(ev.summary)) { lastStep.className = "st ng"; lastStep.textContent += " ❌"; }
     if (ev.name === "add_stop" && !ev.stop) addStep("📍 確認が足りず、やり直し", "ng");
     if (ev.stop) {

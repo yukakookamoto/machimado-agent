@@ -21,6 +21,10 @@ N = len(ISS)
 ADJ = {p["i"]: [(j, h) for j, h in p["l"]] for p in ISS}
 ISS_LATLNG = (29.5604344, -95.0854273)   # 写真の登録上の位置（ヒューストン）。地図には使わない
 
+# 写真を見るのは速いモデルで（考えすぎない設定）。見た結果は覚えておき、同じ写真は見なおさない
+LOOK_MODELS = [m.strip() for m in os.environ.get("LOOK_MODELS", "gemini-2.5-flash,gemini-2.5-flash-lite").split(",") if m.strip()]
+_LOOK_CACHE: dict[tuple[int, int], str] = {}
+
 SPACE_WORDS = ("宇宙ステーション", "iss", "ＩＳＳ", "宇宙", "space station", "きぼう")
 
 
@@ -77,8 +81,10 @@ SPACE_PROMPT = f"""あなたは「まちまど」の案内エージェントで�
 
 ## 進め方（必ず道具で確かめる）
 1. look で写真を見て、そこが何か（どのモジュールか、何が見えるか）を確かめる。
-   分かれ道・行き止まり・あいだの番号などを、広く 8〜14 か所ほど見て、ISS の全体像をつかむ。
+   分かれ道・行き止まり・あいだの番号などを見て、ISS の全体像をつかむ。一度に 3〜4 枚まとめて look してよい（並行して見られる）。
    見たいものの方向がわかれば heading を変えて見なおしてよい。
+   ユーザーは待っているので、立ち寄る価値のある場所が見つかったら、すぐに wikipedia で調べて add_stop する
+   （全部を見おわってからまとめて追加しない）。順番は気にしなくてよい（移動の道順は自動で決まる）。
 2. wikipedia で、見つけたモジュールや設備の事実を調べる（日本の実験棟「きぼう」や、地球が見える窓「キューポラ」が見つかればぜひ入れる）。
 3. 立ち寄り先を 4〜6 か所えらび、なるべく順路が自然になる順に add_stop する（look で確かめた番号だけ）。
    - name：場所の名前（例：「日本実験棟 きぼう」）。モジュールが確信できないときは、見えたものの名前にする（例：「たくさんの機材がならぶ通路」）。
@@ -152,18 +158,24 @@ class SpaceWalk:
         r = await self.http.get(self._img_url(pid, heading))
         if r.status_code != 200 or not r.headers.get("content-type", "").startswith("image"):
             return {"error": f"写真を取得できませんでした（{r.status_code}）"}
+        if (index, heading) in _LOOK_CACHE:
+            text = _LOOK_CACHE[(index, heading)]
+            self.seen[index] = {"heading": heading, "seen": text}
+            return {"index": index, "heading": heading, "seen": text, "neighbors": [{"index": j, "heading": h} for j, h in ADJ[index]]}
         last = None
-        for m in list(self.models):
+        for m in LOOK_MODELS + [x for x in self.models if x not in LOOK_MODELS]:
             try:
+                cfg = types.GenerateContentConfig(thinking_config=types.ThinkingConfig(thinking_budget=0)) if m.startswith("gemini-2.5") else None
                 resp = await self.client.aio.models.generate_content(model=m, contents=[
-                    types.Part.from_bytes(data=r.content, mime_type="image/jpeg"), LOOK_PROMPT])
-                text = (resp.text or "").strip()[:600]
+                    types.Part.from_bytes(data=r.content, mime_type="image/jpeg"), LOOK_PROMPT], config=cfg)
+                text = (resp.text or "").replace("**", "").strip()[:600]
+                _LOOK_CACHE[(index, heading)] = text
                 self.seen[index] = {"heading": heading, "seen": text}
                 return {"index": index, "heading": heading, "seen": text,
                         "neighbors": [{"index": j, "heading": h} for j, h in ADJ[index]]}
             except Exception as e:
                 last = e
-                if any(x in str(e) for x in ("404", "NOT_FOUND", "not found")):
+                if any(x in str(e) for x in ("404", "NOT_FOUND", "not found", "thinking", "INVALID_ARGUMENT", "400")):
                     continue
                 break
         return {"error": f"写真を見られませんでした：{str(last)[:160]}"}
