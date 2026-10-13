@@ -57,6 +57,7 @@ def _backend_broken(msg: str) -> bool:
                                   "has not been used", "402", "prepayment", "billing", "credentials"))
 
 
+VISION_MODELS = [m.strip() for m in os.environ.get("VISION_MODELS", "gemini-2.5-flash,gemini-2.5-flash-lite").split(",") if m.strip()]
 MODELS = [m.strip() for m in os.environ.get("GEMINI_MODELS", "gemini-3.8-flash,gemini-3.6-flash,gemini-2.5-flash").split(",") if m.strip()]
 
 MAX_STEPS = 40          # モデルとのやりとりの上限（暴走よけ）
@@ -72,7 +73,10 @@ Googleストリートビューで実際に歩ける「バーチャル海外散�
 ## 進め方（必ず道具を使って確かめること）
 1. 依頼から、街・テーマ・時間（なければ30分程度＝5〜6か所）を決める。
 2. 立ち寄り先の候補を考え、search_places で実在と正確な位置を確かめる。
-3. 各地点で check_street_view を、search_places で得た「その場所の緯度経度」で呼び、屋外のストリートビューがあるか確かめる。
+3. 各地点で check_street_view を、search_places で得た「その場所の緯度経度」と name（写っていてほしいものの名前）で呼ぶ。
+   道具が候補の写真を実際に見て、目的の場所が写っているものをえらぶ。
+   - visible が yes なら採用。partly なら、seen に書かれた「実際に写っているもの」に合わせて解説を書く。
+   - visible が no なら、その地点は採用しない（別の候補・別の場所にする）。
    - 無い／遠すぎる（distance_m が 80m 以上）場合は、半径を広げて再確認するか、別の候補に差し替える。差し替えた理由は短く書く。
    - 建物・駅・図書館・教会・美術館などは、正面（おもな入口）がどの方角を向いているかを考えて facing に入れる。
      そうすると、正面の通りから建物を見上げる写真が選ばれる（facade_view が true なら成功）。
@@ -84,8 +88,8 @@ Googleストリートビューで実際に歩ける「バーチャル海外散�
    - narration: 案内役の「もちこ」（小さくて明るい、白いおもちのような子）が、となりを歩きながら話す口調で書く。
      「〜だよ」「〜なんだって」「見て見て！」のような、やさしい話しことば。見どころ・歴史・現地の暮らしを2〜4文で。
      話しことばでも、事実は調べた内容だけにする。読み上げるので、記号や括弧はなるべく使わない。
-     画面には、その地点の通りから見た景色が映る。その場所から「見えるもの」を中心に話し、
-     見えないもの（建物の中・遠くの別の場所）を、目の前にあるように言わない。
+     画面には、check_street_view の seen に書かれた景色がそのまま映る。seen に合わせて「目の前に見えるもの」から話しはじめ、
+     見えていないもの（建物の中・遠くの別の場所）を、目の前にあるように言わない。
    - phrases: その場所で旅行者が使えそうな現地語のフレーズを4つ（場面に合ったもの）と、読み方・意味。
    - heading は省略してよい（カメラは自動で、その場所の方向を向く）。
 7. 4〜8か所そろったら finish_walk を呼んで終える。intro も、もちこの口調のあいさつ（1〜2文）にする。
@@ -108,11 +112,13 @@ TOOLS = [types.Tool(function_declarations=[
     _fd("search_places", "Googleの場所検索で、実在する場所の名前・住所・緯度経度を調べる。",
         {"query": S("さがす言葉（例: 'Marché d'Aligre Paris'）"),
          "near_lat": N("この近くを優先（任意）"), "near_lng": N("この近くを優先（任意）")}, ["query"]),
-    _fd("check_street_view", "その地点に屋外のストリートビュー画像があるか確かめる。あれば撮影地点・撮影年月・pano_id を返す。",
+    _fd("check_street_view", "その場所のまわりのストリートビュー写真を集め、目的の場所が本当に写っている写真を Gemini の目で確かめてえらぶ。"
+        "visible（yes/partly/no）と seen（実際に写っているもの）、pano_id を返す。",
         {"lat": N("その場所（建物）の緯度"), "lng": N("その場所（建物）の経度"), "radius_m": N("さがす半径（m）。初めは50、なければ150〜300に広げる"),
          "facing": S("建物・駅・教会などの正面（おもな入口）が向いている方角。N / NE / E / SE / S / SW / W / NW のどれか。"
                      "わかるときは必ず入れる（例：ニューヨーク公共図書館の本館は五番街に面して E、グランド・セントラル駅の正面は42丁目に面して S）。"
-                     "広場・通り・公園など正面がない場所では省略")}, ["lat", "lng"]),
+                     "広場・通り・公園など正面がない場所では省略"),
+         "name": S("写真に写っていてほしいものの名前（現地語か英語。例：'Sagrada Família', 'New York Public Library'）。必ず入れる")}, ["lat", "lng", "name"]),
     _fd("wikipedia", "Wikipediaの要約を調べる。事実の確認に使う。",
         {"title": S("記事名"), "lang": S("言語コード（ja / en / fr / it / es / de など）")}, ["title"]),
     _fd("add_stop", "確認が取れた立ち寄り先を、散歩コースに確定して追加する。",
@@ -221,43 +227,107 @@ class Walk:
                 best = (score, c, dist)
         return (best[1], best[2]) if best else None
 
-    async def check_street_view(self, lat: float, lng: float, radius_m: float = 50, facing: str | None = None) -> dict:
+    async def _candidates(self, lat: float, lng: float, radius: int, facing: str | None) -> list[dict]:
+        """その場所のまわりで、ストリートビューの写真の候補を集める（同じ写真は1つに）"""
+        center = _COMPASS.get(str(facing).strip().upper()) if facing else None
+        k = max(.2, math.cos(math.radians(lat)))
+        bearings = [center + o for o in (0, -15, 15, -30, 30, -45, 45)] if center is not None else list(range(0, 360, 45))
+        pts = [(lat, lng, radius)]
+        for b in bearings:
+            for dist in (25, 45, 70, 100, 140):
+                br = math.radians(b)
+                pts.append((lat + dist * math.cos(br) / 111320, lng + dist * math.sin(br) / (111320 * k), 25))
+        found = await asyncio.gather(*[self._sv_meta(a, b, r) for a, b, r in pts], return_exceptions=True)
+        if isinstance(found[0], dict) and found[0].get("status") == "REQUEST_DENIED":
+            return [found[0]]
+        out, seen = [], set()
+        for i, c in enumerate(found):
+            if not (isinstance(c, dict) and c.get("status") == "OK") or c.get("pano_id") in seen:
+                continue
+            seen.add(c.get("pano_id"))
+            cl = c.get("location", {})
+            p = (cl.get("lat"), cl.get("lng"))
+            dist = _dist_m((lat, lng), p)
+            google = "Google" in str(c.get("copyright", ""))
+            side = _angdiff(_bearing((lat, lng), p), center) if center is not None and dist >= 10 else 0
+            if center is not None and side > 60:
+                continue
+            # 道の写真（Google 撮影）・正面の側・建物全体が入りそうな距離（60m前後）を優先
+            score = (0 if google else 45) + side * 1.5 + abs(dist - 60) / 3 + (0 if i else -5)
+            out.append({**c, "_dist": dist, "_score": score, "_google": google})
+        return sorted(out, key=lambda x: x["_score"])
+
+    async def _see_view(self, pano_id: str, heading: int, pitch: int, name: str) -> dict | None:
+        """その写真に、目的の場所がちゃんと写っているかを Gemini の目で確かめる"""
+        if not getattr(self, "client", None):
+            return None
+        q = urllib.parse.urlencode({"size": "640x400", "pano": pano_id, "heading": heading, "pitch": pitch, "fov": 90, "key": MAPS_API_KEY})
+        r = await self.http.get(f"https://maps.googleapis.com/maps/api/streetview?{q}")
+        if r.status_code != 200 or not r.headers.get("content-type", "").startswith("image"):
+            return None
+        prompt = (f"これはストリートビューの1枚です。「{name}」が、この写真の主役としてはっきり写っていますか？\n"
+                  "visible：yes（はっきり写っている）／partly（一部だけ・遠い・手前の物でかなり隠れている）／no（写っていない・建物の中・別の場所）\n"
+                  "seen：実際に写っているものを日本語で1〜2文（建物の特徴・お店・木・車など）")
+        schema = {"type": "OBJECT", "properties": {"visible": {"type": "STRING", "enum": ["yes", "partly", "no"]},
+                                                   "seen": {"type": "STRING"}}, "required": ["visible", "seen"]}
+        for m in VISION_MODELS:
+            try:
+                kw = {"response_mime_type": "application/json", "response_schema": schema}
+                if m.startswith("gemini-2.5"):
+                    kw["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
+                resp = await self.client.aio.models.generate_content(
+                    model=m, contents=[types.Part.from_bytes(data=r.content, mime_type="image/jpeg"), prompt],
+                    config=types.GenerateContentConfig(**kw))
+                d = json.loads(resp.text)
+                return {"visible": str(d.get("visible", "no")), "seen": str(d.get("seen", ""))[:200]}
+            except Exception as e:
+                log.warning("see_view %s failed: %s", m, str(e)[:160])
+        return None
+
+    async def check_street_view(self, lat: float, lng: float, radius_m: float = 50, facing: str | None = None,
+                                name: str | None = None) -> dict:
         radius = int(max(10, min(1000, radius_m or 50)))
-        fac = await self._facade(lat, lng, facing) if facing else None
-        d = fac[0] if fac else await self._sv_meta(lat, lng, radius)
-        # 個人が撮った写真（建物の中のこともある）なら、近くで Google の車が撮った道の写真をさがす
-        if not fac and d.get("status") == "OK" and "Google" not in str(d.get("copyright", "")):
-            best = None
-            k = max(.2, math.cos(math.radians(lat)))
-            pts = [(lat + dy * st, lng + dx * st / k) for st in (0.00035, 0.0007)
-                   for dy, dx in ((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (-1, -1), (1, -1), (-1, 1))]
-            found = await asyncio.gather(*[self._sv_meta(a, b, 40) for a, b in pts], return_exceptions=True)
-            for c in found:
-                if isinstance(c, dict) and c.get("status") == "OK" and "Google" in str(c.get("copyright", "")):
-                    cl = c.get("location", {})
-                    dist = _dist_m((lat, lng), (cl.get("lat"), cl.get("lng")))
-                    if best is None or dist < best[0]:
-                        best = (dist, c)
-            if best and best[0] <= max(radius, 50) + 60:
-                d = best[1]
-        if d.get("status") == "REQUEST_DENIED":
-            why = str(d.get("error_message", ""))[:200]
+        cands = await self._candidates(lat, lng, radius, facing)
+        if cands and cands[0].get("status") == "REQUEST_DENIED":
+            why = str(cands[0].get("error_message", ""))[:200]
             log.error("streetview REQUEST_DENIED: %s", why)
             self.fatal = f"ストリートビューの確認が拒否されました（{why or '地図の鍵の設定を確かめてください'}）"
             return {"available": False, "status": "REQUEST_DENIED", "error": "設定の問題です。やり直しても直りません。"}
-        if d.get("status") != "OK":
-            return {"available": False, "status": d.get("status"), "hint": "半径を広げるか、別の地点にしてください。"}
-        loc = d.get("location", {})
-        dist = _dist_m((lat, lng), (loc.get("lat"), loc.get("lng")))
-        info = {"available": True, "pano_id": d.get("pano_id"), "lat": loc.get("lat"), "lng": loc.get("lng"),
-                "date": d.get("date"), "distance_m": round(dist),
-                "by_google": "Google" in str(d.get("copyright", "")),
-                # 撮影地点から、さがしている場所の方向（カメラをそちらに向ける）
-                "heading_to_place": round(_bearing((loc.get("lat"), loc.get("lng")), (lat, lng))) if dist >= 6 else None,
-                "facade_view": bool(fac),
-                "place": {"lat": lat, "lng": lng}, "facing": (str(facing).strip().upper() if facing else None),
-                # 近いほど上を向いて、建物全体が入るように
-                "pitch": (16 if dist < 40 else 10 if dist < 80 else 5) if fac else 0}
+        cands = [c for c in cands if c["_dist"] <= max(radius, 60) + 120]
+        if not cands:
+            return {"available": False, "status": "ZERO_RESULTS", "hint": "半径を広げるか、別の地点にしてください。"}
+
+        def view_of(c):
+            dist = c["_dist"]
+            heading = round(_bearing((c["location"]["lat"], c["location"]["lng"]), (lat, lng))) if dist >= 6 else 0
+            pitch = 18 if dist < 45 else 12 if dist < 90 else 6
+            return heading, pitch
+
+        # 上位の候補を、実際に「見て」確かめる（目的の場所が写っている写真をえらぶ）
+        chosen, checked, look = cands[0], [], None
+        if name:
+            top = cands[:6]
+            views = await asyncio.gather(*[self._see_view(c["pano_id"], *view_of(c), name) for c in top], return_exceptions=True)
+            rank = {"yes": 0, "partly": 1, "no": 2}
+            scored = [(rank.get((v or {}).get("visible", "no"), 2), i, c, v) for i, (c, v) in enumerate(zip(top, views))
+                      if isinstance(v, dict)]
+            checked = [{"visible": v["visible"], "distance_m": round(c["_dist"])} for _, _, c, v in scored]
+            if scored:
+                scored.sort(key=lambda x: (x[0], x[1]))
+                _, _, chosen, look = scored[0]
+        heading, pitch = view_of(chosen)
+        loc = chosen.get("location", {})
+        info = {"available": True, "pano_id": chosen.get("pano_id"), "lat": loc.get("lat"), "lng": loc.get("lng"),
+                "date": chosen.get("date"), "distance_m": round(chosen["_dist"]), "by_google": chosen["_google"],
+                "heading_to_place": heading if chosen["_dist"] >= 6 else None, "pitch": pitch,
+                "facade_view": bool(facing), "place": {"lat": lat, "lng": lng},
+                "facing": (str(facing).strip().upper() if facing else None)}
+        if look:
+            info.update({"visible": look["visible"], "seen": look["seen"], "checked": len(checked), "view_checked": True})
+            if look["visible"] == "no":
+                info["hint"] = "どの写真にも目的の場所が写っていません。別の候補地か、別の場所にしてください。"
+            elif look["visible"] == "partly":
+                info["hint"] = "一部だけ写っています。解説は seen（実際に写っているもの）に合わせてください。"
         self.verified[info["pano_id"]] = info
         return info
 
@@ -297,6 +367,8 @@ class Walk:
         stop["facade_view"] = bool(v.get("facade_view"))
         stop["place"] = v.get("place")
         stop["facing"] = v.get("facing")
+        stop["view_checked"] = bool(v.get("view_checked"))
+        stop["seen"] = v.get("seen")
         if self.stops:
             stop["from_prev_m"] = round(_dist_m((self.stops[-1]["lat"], self.stops[-1]["lng"]), (v["lat"], v["lng"])))
         self.stops.append(stop)
@@ -349,8 +421,8 @@ async def run_walk(request: str, trace_id: str) -> AsyncIterator[dict]:
         models = list(MODELS)
         yield {"type": "start", "trace_id": trace_id, "model": f"{models[0]}・{backend}", "mode": "space" if is_space else "earth"}
         for step in range(MAX_STEPS):
-            if is_space:   # 写真を見る道具も、いまの呼び先とモデルを使う
-                walk.client, walk.models = client, models
+            walk.client, walk.models = client, models   # 写真を見る道具も、いまの呼び先を使う
+            if is_space:
                 if step == 0:
                     walk.start_survey()
             resp = None
@@ -421,6 +493,7 @@ async def run_walk(request: str, trace_id: str) -> AsyncIterator[dict]:
                 ev = {"type": "result", "name": fc.name, "summary": _short(out)}
                 if fc.name == "check_street_view":
                     ev["ok"] = bool(out.get("available"))
+                    ev.update({k: out.get(k) for k in ("visible", "seen", "checked", "facade_view", "by_google") if out.get(k) is not None})
                 if fc.name == "add_stop" and out.get("ok"):
                     ev["stop"] = walk.stops[-1]
                 yield ev

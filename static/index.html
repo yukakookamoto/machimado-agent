@@ -200,7 +200,7 @@ async function loadMaps(){
 // ================= エージェントの足あと（立ち寄り先ごとのカード） =================
 const NOW = {   // [足あとに出す文, もちこが言う文]
   search_places: a => [`「${cut(a.query, 30)}」をさがしています`, `いま「${cut(a.query, 24)}」をさがしているよ`],
-  check_street_view: a => a.facing ? ["建物の正面が見える通りをさがしています", "正面から見られる場所をさがしているよ"] : ["その場所を、通りから見られるか確かめています", "通りから見られるか、確かめているよ"],
+  check_street_view: a => a.name ? [`「${cut(a.name, 20)}」が写っている写真を、実際に見て選んでいます`, `「${cut(a.name, 16)}」がちゃんと見える場所を探しているよ`] : a.facing ? ["建物の正面が見える通りをさがしています", "正面から見られる場所をさがしているよ"] : ["その場所を、通りから見られるか確かめています", "通りから見られるか、確かめているよ"],
   wikipedia: a => [`Wikipediaで「${cut(a.title, 24)}」を調べています`, `「${cut(a.title, 20)}」のこと、調べているよ`],
   look: a => [`写真 #${a.index} を見て、ここがどこか確かめています`, `いま写真を見て、ここがどこか考えているよ`],
   add_stop: a => [`「${cut(a.name, 24)}」を立ち寄り先に決めました`, `「${cut(a.name, 20)}」に決めたよ！`],
@@ -390,6 +390,7 @@ function walkerAt(pos){
 // 建物の正面が見える「Google が道から撮った写真」を、画面側でえらびなおす（個人の写真を避けられるのは地図の画面側だけ）
 const FACE_DEG = {N: 0, NE: 45, E: 90, SE: 135, S: 180, SW: 225, W: 270, NW: 315};
 function refine(s){
+  if (s.view_checked) return Promise.resolve();   // サーバーで「写っている」ことを確かめた写真は、そのまま使う
   if (s.refined) return s.refined;
   s.refined = (async () => {
     const c = s.place, center = FACE_DEG[s.facing];
@@ -589,7 +590,7 @@ function onEvent(ev){
     if (cur < 0 && m) bubble(m + "…");   // 案内が始まるまでは、もちこがエージェントの様子を伝える
     const a = ev.args || {};
     if (ev.name === "search_places") lastStep = addStep(`🔎 ${cut(a.query, 18)}`, "", a.query);
-    else if (ev.name === "check_street_view") lastStep = addStep(a.facing ? `🎯 正面（${FACE[a.facing] || a.facing}向き）から見られる？` : "📷 通りから見られる？", "", `${(+a.lat).toFixed(4)}, ${(+a.lng).toFixed(4)}`);
+    else if (ev.name === "check_street_view") lastStep = addStep(a.name ? `👀 「${cut(a.name, 14)}」が写る写真をさがす${a.facing ? `（${FACE[a.facing] || a.facing}向きの正面）` : ""}` : "📷 通りから見られる？", "", `${(+a.lat).toFixed(4)}, ${(+a.lng).toFixed(4)}`);
     else if (ev.name === "wikipedia") lastStep = addStep(`📚 ${cut(a.title, 16)}`, "", `Wikipedia（${a.lang || "ja"}）`);
     else if (ev.name === "look") lastStep = addStep(`👀 写真 #${a.index}`, "", "Gemini が写真を見て判断");
     else lastStep = null;
@@ -599,7 +600,13 @@ function onEvent(ev){
     lastStep = pendingSteps.length ? pendingSteps.shift() : lastStep;
     if (ev.name === "check_street_view" && lastStep) {
       let info = {}; try { info = JSON.parse(ev.summary.replace(/…$/, "")); } catch {}
-      if (ev.ok) { lastStep.className = "st ok"; lastStep.textContent = info.facade_view ? "🎯 ✅ 正面から見られる" : info.by_google === false ? "📷 ✅ 見られる（個人の写真）" : "📷 ✅ 見られる"; }
+      info = {...info, ...ev};
+      if (ev.ok && info.visible) {
+        lastStep.className = "st " + (info.visible === "no" ? "ng" : "ok");
+        lastStep.textContent = info.visible === "yes" ? `👀 ✅ 写っている（${info.checked || 1}枚を見て判断）` : info.visible === "partly" ? "👀 △ 一部だけ写っている" : "👀 ❌ 写っていない → 差しかえ";
+        if (info.seen) lastStep.title = "見えたもの：" + info.seen;
+      }
+      else if (ev.ok) { lastStep.className = "st ok"; lastStep.textContent = info.facade_view ? "🎯 ✅ 正面から見られる" : info.by_google === false ? "📷 ✅ 見られる（個人の写真）" : "📷 ✅ 見られる"; }
       else { lastStep.className = "st ng"; lastStep.textContent = "📷 ❌ 写真なし → 差しかえ"; }
     }
     if (ev.name === "look" && lastStep) { const m = ev.summary.match(/"place": "([^"]+)"/); if (m) { lastStep.className = "st ok"; lastStep.textContent += " → " + cut(m[1].replace(/[（(、。].*$/, ""), 16); if (m[1] === "不明") lastStep.className = "st"; lastStep.title = ev.summary; } }
