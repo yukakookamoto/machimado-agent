@@ -602,7 +602,7 @@ function onEvent(ev){
       if (ev.ok) { lastStep.className = "st ok"; lastStep.textContent = info.facade_view ? "🎯 ✅ 正面から見られる" : info.by_google === false ? "📷 ✅ 見られる（個人の写真）" : "📷 ✅ 見られる"; }
       else { lastStep.className = "st ng"; lastStep.textContent = "📷 ❌ 写真なし → 差しかえ"; }
     }
-    if (ev.name === "look" && lastStep) { const m = ev.summary.replace(/\*/g, "").match(/場所の見当：\s*([^\\"\n]+)/); if (m) { lastStep.className = "st ok"; lastStep.textContent += " → " + cut(m[1].replace(/[（(、。].*$/, ""), 18); lastStep.title = ev.summary; } }
+    if (ev.name === "look" && lastStep) { const m = ev.summary.match(/"place": "([^"]+)"/); if (m) { lastStep.className = "st ok"; lastStep.textContent += " → " + cut(m[1].replace(/[（(、。].*$/, ""), 16); if (m[1] === "不明") lastStep.className = "st"; lastStep.title = ev.summary; } }
     if (ev.name === "wikipedia" && lastStep && /"found": false/.test(ev.summary)) { lastStep.className = "st ng"; lastStep.textContent += " ❌"; }
     if (ev.name === "add_stop" && !ev.stop) addStep("📍 確認が足りず、やり直し", "ng");
     if (ev.stop) {

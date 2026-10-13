@@ -23,7 +23,8 @@ ISS_LATLNG = (29.5604344, -95.0854273)   # 写真の登録上の位置（ヒュ�
 
 # 写真を見るのは速いモデルで（考えすぎない設定）。見た結果は覚えておき、同じ写真は見なおさない
 LOOK_MODELS = [m.strip() for m in os.environ.get("LOOK_MODELS", "gemini-2.5-flash,gemini-2.5-flash-lite").split(",") if m.strip()]
-_LOOK_CACHE: dict[tuple[int, int], str] = {}
+_LOOK_CACHE: dict[tuple[int, int], dict] = {}
+_SURVEY: dict[str, asyncio.Task] = {}
 
 SPACE_WORDS = ("宇宙ステーション", "iss", "ＩＳＳ", "宇宙", "space station", "きぼう")
 
@@ -124,10 +125,13 @@ SPACE_TOOLS = [types.Tool(function_declarations=[
         {"title": S("散歩のタイトル"), "intro": S("もちこのはじめのあいさつ 1〜2文")}, ["title"]),
 ])]
 
-LOOK_PROMPT = """これは国際宇宙ステーション（ISS）の中で撮った写真です（2017年）。日本語で、次の形で短く答えてください。
-見えるもの：（写っているものを具体的に2〜3文。窓・地球・機材・ハッチ・寝室・ロボットアーム操作台・日の丸や国旗・文字など）
-場所の見当：（どのモジュールの可能性が高いか。例：日本実験棟きぼう、米国実験棟デスティニー、ハーモニー、ユニティ、トランクウィリティー、キューポラ、欧州実験棟コロンバス、ロシアのズヴェズダ など。根拠も一言。わからなければ「不明」）
-確からしさ：高い／ふつう／低い"""
+LOOK_PROMPT = """これは国際宇宙ステーション（ISS）の中で撮った写真です（2017年）。写真に写っているものだけを根拠に、日本語で答えてください。
+- seen：写っているものを具体的に2〜3文（窓・地球・機材・ハッチ・寝袋・ロボットアーム操作台・国旗・ロゴ・読める文字など）
+- place：どのモジュールの可能性が高いか（日本実験棟きぼう、米国実験棟デスティニー、ハーモニー、ユニティ、トランクウィリティー、キューポラ、欧州実験棟コロンバス、ズヴェズダ など）。写真に手がかりがなければ「不明」
+- reason：placeの根拠を一言（写真に見えるものだけで）
+- confidence：高い／ふつう／低い"""
+LOOK_SCHEMA = {"type": "OBJECT", "properties": {"seen": {"type": "STRING"}, "place": {"type": "STRING"}, "reason": {"type": "STRING"},
+                                                "confidence": {"type": "STRING"}}, "required": ["seen", "place", "confidence"]}
 
 
 class SpaceWalk:
@@ -150,35 +154,65 @@ class SpaceWalk:
         q = urllib.parse.urlencode({"size": "640x400", "pano": pid, "heading": heading, "pitch": 0, "fov": 110, "key": self.maps_key})
         return f"https://maps.googleapis.com/maps/api/streetview?{q}"
 
+    async def _see(self, index: int, heading: int) -> dict | None:
+        """写真を1枚、Gemini の目で見る（結果は覚えておく）"""
+        if (index, heading) in _LOOK_CACHE:
+            return _LOOK_CACHE[(index, heading)]
+        r = await self.http.get(self._img_url(ISS[index]["id"], heading))
+        if r.status_code != 200 or not r.headers.get("content-type", "").startswith("image"):
+            return None
+        for m in LOOK_MODELS + [x for x in self.models if x not in LOOK_MODELS]:
+            try:
+                kw = {"response_mime_type": "application/json", "response_schema": LOOK_SCHEMA}
+                if m.startswith("gemini-2.5"):
+                    kw["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
+                resp = await self.client.aio.models.generate_content(model=m, contents=[
+                    types.Part.from_bytes(data=r.content, mime_type="image/jpeg"), LOOK_PROMPT],
+                    config=types.GenerateContentConfig(**kw))
+                d = json.loads(resp.text)
+                out = {"place": str(d.get("place", "不明"))[:60], "confidence": str(d.get("confidence", ""))[:10],
+                       "seen": str(d.get("seen", ""))[:400], "reason": str(d.get("reason", ""))[:160]}
+                _LOOK_CACHE[(index, heading)] = out
+                return out
+            except Exception as e:
+                log.warning("look %s with %s failed: %s", index, m, str(e)[:160])
+                continue
+        return None
+
+    def start_survey(self):
+        """散歩を作りはじめたら、裏で全部の写真をひととおり見ておく（エージェントの look がすぐ返るように）"""
+        key = "iss"
+        if key in _SURVEY and not _SURVEY[key].done():
+            return
+
+        async def run():
+            sem = asyncio.Semaphore(6)
+
+            async def one(i):
+                async with sem:
+                    try:
+                        await self._see(i, 0)
+                    except Exception:
+                        pass
+            await asyncio.gather(*[one(i) for i in range(N)])
+        _SURVEY[key] = asyncio.create_task(run())
+
     async def look(self, index: int, heading: int = 0) -> dict:
         index, heading = int(index), int(heading or 0) % 360
         if not 0 <= index < N:
             return {"error": f"番号は 0〜{N - 1} です"}
-        pid = ISS[index]["id"]
-        r = await self.http.get(self._img_url(pid, heading))
-        if r.status_code != 200 or not r.headers.get("content-type", "").startswith("image"):
-            return {"error": f"写真を取得できませんでした（{r.status_code}）"}
-        if (index, heading) in _LOOK_CACHE:
-            text = _LOOK_CACHE[(index, heading)]
-            self.seen[index] = {"heading": heading, "seen": text}
-            return {"index": index, "heading": heading, "seen": text, "neighbors": [{"index": j, "heading": h} for j, h in ADJ[index]]}
-        last = None
-        for m in LOOK_MODELS + [x for x in self.models if x not in LOOK_MODELS]:
-            try:
-                cfg = types.GenerateContentConfig(thinking_config=types.ThinkingConfig(thinking_budget=0)) if m.startswith("gemini-2.5") else None
-                resp = await self.client.aio.models.generate_content(model=m, contents=[
-                    types.Part.from_bytes(data=r.content, mime_type="image/jpeg"), LOOK_PROMPT], config=cfg)
-                text = (resp.text or "").replace("**", "").strip()[:600]
-                _LOOK_CACHE[(index, heading)] = text
-                self.seen[index] = {"heading": heading, "seen": text}
-                return {"index": index, "heading": heading, "seen": text,
-                        "neighbors": [{"index": j, "heading": h} for j, h in ADJ[index]]}
-            except Exception as e:
-                last = e
-                if any(x in str(e) for x in ("404", "NOT_FOUND", "not found", "thinking", "INVALID_ARGUMENT", "400")):
-                    continue
-                break
-        return {"error": f"写真を見られませんでした：{str(last)[:160]}"}
+        self.looks = getattr(self, "looks", 0) + 1
+        if self.looks > 24 and (index, heading) not in _LOOK_CACHE:
+            return {"error": "もう十分に見ました。見た場所から add_stop して、finish_walk で終えてください。"}
+        d = await self._see(index, heading)
+        if not d:
+            return {"error": "写真を見られませんでした。別の番号にしてください。"}
+        self.seen[index] = {"heading": heading, **d}
+        out = {"index": index, "place": d["place"], "confidence": d["confidence"], "heading": heading,
+               "seen": d["seen"], "reason": d["reason"], "neighbors": [{"index": j, "heading": h} for j, h in ADJ[index]]}
+        if self.looks >= 12 and not self.stops:
+            out["note"] = "もう全体像はつかめたはず。立ち寄る場所を決めて add_stop を始めてください。"
+        return out
 
     async def wikipedia(self, title: str, lang: str = "ja") -> dict:
         return await self.wiki_fn(title, lang)

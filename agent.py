@@ -351,6 +351,8 @@ async def run_walk(request: str, trace_id: str) -> AsyncIterator[dict]:
         for step in range(MAX_STEPS):
             if is_space:   # 写真を見る道具も、いまの呼び先とモデルを使う
                 walk.client, walk.models = client, models
+                if step == 0:
+                    walk.start_survey()
             resp = None
             tries = 0
             while models:
