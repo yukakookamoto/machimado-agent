@@ -662,6 +662,7 @@ function onEvent(ev){
     if (ev.name === "add_stop" && !ev.stop) addStep("📍 確認が足りず、やり直し", "ng");
     if (ev.stop) {
       walk.stops.push(ev.stop); const i = walk.stops.length - 1; refine(ev.stop);
+      fetchVoice(ev.stop.narration); if (i) fetchVoice(`次は${ev.stop.name}だよ。${ev.stop.space ? "ふわっと移動しよう！" : "いっしょに歩こう！"}`);   // 声は先に作っておく（読みの確認に数秒かかるため）
       finishCard(ev.stop, i); drawRoute(); renderBar();
       if (i === 0) { if (!ev.stop.space) local.pending = loadLocal(ev.stop); if (tour.on) tourFrom(0); else show(0); }
       else markCards();
