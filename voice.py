@@ -83,6 +83,62 @@ async def _chirp(text: str, locale: str, voice: str) -> bytes:
     return data if data[:4] == b"RIFF" else _wav(data, 24000)
 
 
+# ---- 読みまちがい対策：読み上げる前に、まちがえやすい漢字だけ Gemini でひらがなにする ----
+YOMI_MODELS = [m.strip() for m in os.environ.get("YOMI_MODELS", "gemini-2.5-flash,gemini-2.5-flash-lite").split(",") if m.strip()]
+YOMI_PROMPT = """次の文は、音声合成で読み上げる日本語の文です。音声合成は漢字の読みをよくまちがえます（例：大迫力を「おおさこちから」、
+一日を「いちにち／ついたち」、上手を「うわて」、外国の地名や人名の漢字など）。
+読みまちがえやすい漢字の語（熟語・固有名詞・人名・地名・むずかしい語・読みが何通りもある語）だけを、正しい読みのひらがなに書きかえてください。
+ふつうに読める簡単な漢字（歩く・見る・今日・時間・建物 など）、カタカナ、数字、英字、句読点はそのまま残す。
+語を足したり、けずったり、言いかえたりしない。書きかえた文だけを出力する。
+
+文：
+"""
+_yomi_cache: "OrderedDict[str, str]" = OrderedDict()
+_yomi_clients: list = []
+
+
+def _clients() -> list:
+    if not _yomi_clients:
+        vp = os.environ.get("VERTEX_PROJECT", "")
+        if vp:
+            try:
+                _yomi_clients.append(genai.Client(vertexai=True, project=vp, location=os.environ.get("VERTEX_LOCATION", "global")))
+            except Exception as e:
+                log.warning("yomi vertex client failed: %s", e)
+        if GEMINI_API_KEY:
+            _yomi_clients.append(genai.Client(api_key=GEMINI_API_KEY))
+    return _yomi_clients
+
+
+async def yomi(text: str) -> str:
+    """読みまちがえやすい漢字をひらがなにした文。うまくいかなければ元の文のまま"""
+    import asyncio
+    import re
+    if not re.search(r"[一-鿿]", text):
+        return text
+    if text in _yomi_cache:
+        return _yomi_cache[text]
+    for client in _clients():
+        for m in YOMI_MODELS:
+            try:
+                kw = {"temperature": 0}
+                if m.startswith("gemini-2.5"):
+                    kw["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
+                resp = await asyncio.wait_for(client.aio.models.generate_content(
+                    model=m, contents=YOMI_PROMPT + text, config=types.GenerateContentConfig(**kw)), timeout=6)
+                out = (resp.text or "").strip().strip("「」\"")
+                if out and 0.7 * len(text) <= len(out) <= 2.2 * len(text) + 10:
+                    _yomi_cache[text] = out
+                    if len(_yomi_cache) > _CACHE_MAX:
+                        _yomi_cache.popitem(last=False)
+                    return out
+                log.warning("yomi rejected: %s -> %s", text[:60], out[:60])
+                return text
+            except Exception as e:
+                log.warning("yomi %s failed: %s", m, str(e)[:160])
+    return text
+
+
 def _put(key: str, wav: bytes) -> bytes:
     _cache[key] = wav
     if len(_cache) > _CACHE_MAX:
@@ -99,6 +155,8 @@ async def synth(text: str, lang_hint: str = "ja", voice: str | None = None) -> b
     if key in _cache:
         _cache.move_to_end(key)
         return _cache[key]
+    if lang == "ja":
+        text = await yomi(text)
     if MAPS_API_KEY:
         try:
             return _put(key, await _chirp(text, LOCALES.get(lang, "en-US"), voice))

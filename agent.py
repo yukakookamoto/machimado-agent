@@ -90,6 +90,7 @@ Googleストリートビューで実際に歩ける「バーチャル海外散�
      話しことばでも、事実は調べた内容だけにする。読み上げるので、記号や括弧はなるべく使わない。
      画面には、check_street_view の seen に書かれた景色がそのまま映る。seen に合わせて「目の前に見えるもの」から話しはじめ、
      見えていないもの（建物の中・遠くの別の場所）を、目の前にあるように言わない。
+     画面は現地のいまの時間（昼・夕方・夜）に合わせた明るさで見せるので、写真の空の色や明るさ（青空・夕焼け・夜景など）には触れない。
    - phrases: その場所で旅行者が使えそうな現地語のフレーズを4つ（場面に合ったもの）と、読み方・意味。
    - heading は省略してよい（カメラは自動で、その場所の方向を向く）。
 7. 4〜8か所そろったら finish_walk を呼んで終える。intro も、もちこの口調のあいさつ（1〜2文）にする。
@@ -145,6 +146,22 @@ _COMPASS = {"N": 0, "NE": 45, "E": 90, "SE": 135, "S": 180, "SW": 225, "W": 270,
 
 def _angdiff(a: float, b: float) -> float:
     return abs(((a - b + 540) % 360) - 180)
+
+
+def sun_phase(lat: float, lng: float, t: float | None = None) -> str:
+    """現地のいまの太陽の高さから day / dusk / night を決める（画面の見え方と同じ決め方）"""
+    import time as _t
+    r = math.pi / 180
+    n = (t or _t.time()) / 86400 + 2440587.5 - 2451545
+    L = (280.460 + 0.9856474 * n) % 360
+    g = ((357.528 + 0.9856003 * n) % 360) * r
+    lam = (L + 1.915 * math.sin(g) + 0.020 * math.sin(2 * g)) * r
+    eps = (23.439 - 0.0000004 * n) * r
+    ra = math.atan2(math.cos(eps) * math.sin(lam), math.cos(lam))
+    dec = math.asin(math.sin(eps) * math.sin(lam))
+    ha = ((280.46061837 + 360.98564736629 * n + lng) % 360) * r - ra
+    alt = math.asin(math.sin(lat * r) * math.sin(dec) + math.cos(lat * r) * math.cos(dec) * math.cos(ha)) / r
+    return "night" if alt < -4 else "dusk" if alt < 8 else "day"
 
 
 def _bearing(a: tuple[float, float], b: tuple[float, float]) -> float:
@@ -271,9 +288,12 @@ class Walk:
                   + (f"「{name}」の見た目の特徴：{features}\n" if features else "")
                   + "その特徴が実際に見えるときだけ yes。となりの建物・ふつうの建物・お店しか見えないときは no。\n"
                   "visible：yes（特徴がはっきり見える）／partly（一部だけ・遠い・手前の物でかなり隠れている）／no（写っていない・別の建物・建物の中）\n"
-                  "seen：実際に写っているものを日本語で1〜2文（建物の色・形・お店・木・車など）")
+                  "seen：実際に写っているものを日本語で1〜2文（建物の色・形・お店・木・車など）\n"
+                  "light：写真が撮られた時間帯（day＝昼の明るさ／dusk＝夕暮れ・朝焼け／night＝夜で暗い・街灯がともる）")
         schema = {"type": "OBJECT", "properties": {"visible": {"type": "STRING", "enum": ["yes", "partly", "no"]},
-                                                   "seen": {"type": "STRING"}}, "required": ["visible", "seen"]}
+                                                   "seen": {"type": "STRING"},
+                                                   "light": {"type": "STRING", "enum": ["day", "dusk", "night"]}},
+                  "required": ["visible", "seen", "light"]}
         for m in VISION_MODELS:
             try:
                 kw = {"response_mime_type": "application/json", "response_schema": schema}
@@ -283,7 +303,7 @@ class Walk:
                     model=m, contents=[types.Part.from_bytes(data=r.content, mime_type="image/jpeg"), prompt],
                     config=types.GenerateContentConfig(**kw))
                 d = json.loads(resp.text)
-                return {"visible": str(d.get("visible", "no")), "seen": str(d.get("seen", ""))[:200]}
+                return {"visible": str(d.get("visible", "no")), "seen": str(d.get("seen", ""))[:200], "light": str(d.get("light", "day"))}
             except Exception as e:
                 log.warning("see_view %s failed: %s", m, str(e)[:160])
         return None
@@ -313,8 +333,10 @@ class Walk:
             top = cands[:6]
             views = await asyncio.gather(*[self._see_view(c["pano_id"], *view_of(c), name, features or "") for c in top], return_exceptions=True)
             rank = {"yes": 0, "partly": 1, "no": 2}
-            scored = [(rank.get((v or {}).get("visible", "no"), 2), i, c, v) for i, (c, v) in enumerate(zip(top, views))
-                      if isinstance(v, dict)]
+            now = sun_phase(lat, lng)   # 現地がいま夜なら夜の写真、昼なら昼の写真を先にえらぶ
+            order = {"day": ["day", "dusk", "night"], "dusk": ["dusk", "night", "day"], "night": ["night", "dusk", "day"]}[now]
+            scored = [(rank.get((v or {}).get("visible", "no"), 2) * 10 + order.index(v.get("light", "day") if v.get("light") in order else "day"), i, c, v)
+                      for i, (c, v) in enumerate(zip(top, views)) if isinstance(v, dict)]
             checked = [{"visible": v["visible"], "distance_m": round(c["_dist"])} for _, _, c, v in scored]
             if scored:
                 scored.sort(key=lambda x: (x[0], x[1]))
@@ -327,7 +349,8 @@ class Walk:
                 "facade_view": bool(facing), "place": {"lat": lat, "lng": lng},
                 "facing": (str(facing).strip().upper() if facing else None)}
         if look:
-            info.update({"visible": look["visible"], "seen": look["seen"], "checked": len(checked), "view_checked": True})
+            info.update({"visible": look["visible"], "seen": look["seen"], "checked": len(checked), "view_checked": True,
+                         "light": look.get("light")})
             if look["visible"] == "no":
                 info["hint"] = "どの写真にも目的の場所が写っていません。別の候補地か、別の場所にしてください。"
             elif look["visible"] == "partly":
@@ -372,6 +395,7 @@ class Walk:
         stop["place"] = v.get("place")
         stop["facing"] = v.get("facing")
         stop["view_checked"] = bool(v.get("view_checked"))
+        stop["light"] = v.get("light")
         stop["seen"] = v.get("seen")
         if self.stops:
             stop["from_prev_m"] = round(_dist_m((self.stops[-1]["lat"], self.stops[-1]["lng"]), (v["lat"], v["lng"])))

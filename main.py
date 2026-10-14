@@ -121,6 +121,15 @@ async def local_info(lat: float, lng: float):
     return out
 
 
+@app.get("/api/yomi")
+async def yomi_check(req: Request, text: str = ""):
+    """読み上げ前の読みの直しを確かめる（もちこの声と同じ回数制限）"""
+    if _over(_vhits, _client_ip(req), VOICE_PER_HOUR):
+        return JSONResponse({"error": "rate"}, status_code=429)
+    text = text.strip()[:300]
+    return {"text": text, "yomi": await voice.yomi(text) if text else ""}
+
+
 @app.post("/api/voice")
 async def speak(req: Request):
     """もちこの声（Gemini の音声生成）。失敗したら 502 を返し、画面側はブラウザの声に切りかえる"""
