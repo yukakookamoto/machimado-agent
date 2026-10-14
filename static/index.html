@@ -113,7 +113,7 @@ body.space .mapbox{display:none}
 aside{display:grid;gap:16px;align-content:start}
 .mapbox{padding:12px 14px}
 .mapbox h3,.trace h3{margin:0 0 6px;font:700 16px "Zen Maru Gothic",sans-serif}
-#map{width:100%;height:300px;border-radius:10px;background:var(--bg)}
+#map{width:100%;height:clamp(300px,38vh,420px);border-radius:10px;background:var(--bg)}
 
 /* エージェントの足あと */
 .trace{padding:12px 14px;max-height:calc(100vh - 120px);overflow:auto}
@@ -122,7 +122,7 @@ aside{display:grid;gap:16px;align-content:start}
 .now .who{flex:none;width:26px;height:26px;border-radius:50%;background:var(--accent2);color:#fff;display:grid;place-items:center;font-size:14px}
 .now.done .who{background:var(--ok)}
 .now.ng .who{background:var(--ng)}
-.sc{position:relative;border:1px solid var(--line);border-radius:14px;padding:9px 11px 9px 44px;margin:0 0 10px;background:var(--card);cursor:pointer;transition:background .3s,border-color .3s}
+.sc{position:relative;border:1px solid var(--line);border-radius:14px;padding:8px 11px 8px 44px;margin:0 0 8px;background:var(--card);cursor:pointer;transition:background .3s,border-color .3s}
 .sc:hover{border-color:var(--accent2)}
 .sc .num{position:absolute;left:10px;top:9px;width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font:700 13px "Zen Maru Gothic",sans-serif}
 .sc.work{border-style:dashed;cursor:default}
@@ -133,11 +133,12 @@ aside{display:grid;gap:16px;align-content:start}
 .sc .tag.talk{background:var(--accent);color:#fff}
 .sc .tag.walk{background:var(--accent2);color:#fff}
 .steps{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.sc:not(.work) .steps{display:none}   /* 決まった地点では、確かめた道具の札はしまってスッキリ見せる（考えている間だけ出す） */
 .st{font-size:11.5px;border-radius:8px;padding:1px 7px;background:var(--bg);color:var(--ink2);border:1px solid var(--line);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .st.ok{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 40%,transparent)}
 .st.ng{color:var(--ng);border-color:color-mix(in srgb,var(--ng) 40%,transparent)}
 .why{font-size:12px;color:var(--ink2);margin-top:5px;font-style:italic}
-.quote{font-size:12.5px;margin-top:6px;padding:5px 9px;border-radius:10px;background:var(--bg);display:flex;gap:6px;align-items:flex-start}
+.quote{font-size:12.5px;margin-top:5px;padding:4px 9px;border-radius:10px;background:var(--bg);display:flex;gap:6px;align-items:flex-start}
 .quote img{width:16px;flex:none;margin-top:3px}
 .stats{font-size:12px;color:var(--ink2);margin-top:4px}
 </style>
