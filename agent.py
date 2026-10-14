@@ -90,7 +90,7 @@ Googleストリートビューで実際に歩ける「バーチャル海外散�
      話しことばでも、事実は調べた内容だけにする。読み上げるので、記号や括弧はなるべく使わない。
      画面には、check_street_view の seen に書かれた景色がそのまま映る。seen に合わせて「目の前に見えるもの」から話しはじめ、
      見えていないもの（建物の中・遠くの別の場所）を、目の前にあるように言わない。
-     画面は現地のいまの時間（昼・夕方・夜）に合わせた明るさで見せるので、写真の空の色や明るさ（青空・夕焼け・夜景など）には触れない。
+     写真は撮った日の明るさのままで、現地のいまの時間とはちがうことがあるので、空の色や明るさ（青空・夕焼け・夜景など）には触れない。
    - phrases: その場所で旅行者が使えそうな現地語のフレーズを4つ（場面に合ったもの）と、読み方・意味。
    - heading は省略してよい（カメラは自動で、その場所の方向を向く）。
 7. 4〜8か所そろったら finish_walk を呼んで終える。intro も、もちこの口調のあいさつ（1〜2文）にする。
@@ -333,8 +333,7 @@ class Walk:
             top = cands[:6]
             views = await asyncio.gather(*[self._see_view(c["pano_id"], *view_of(c), name, features or "") for c in top], return_exceptions=True)
             rank = {"yes": 0, "partly": 1, "no": 2}
-            now = sun_phase(lat, lng)   # 現地がいま夜なら夜の写真、昼なら昼の写真を先にえらぶ
-            order = {"day": ["day", "dusk", "night"], "dusk": ["dusk", "night", "day"], "night": ["night", "dusk", "day"]}[now]
+            order = ["day", "dusk", "night"]   # いつも明るい昼の写真を先にえらぶ（見やすさ優先）
             scored = [(rank.get((v or {}).get("visible", "no"), 2) * 10 + order.index(v.get("light", "day") if v.get("light") in order else "day"), i, c, v)
                       for i, (c, v) in enumerate(zip(top, views)) if isinstance(v, dict)]
             checked = [{"visible": v["visible"], "distance_m": round(c["_dist"])} for _, _, c, v in scored]

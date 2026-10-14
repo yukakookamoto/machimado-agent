@@ -303,7 +303,7 @@ function setTod(s, native){
   const ph = phaseAt(s), el = $("#tod");
   el.classList.remove("night", "dusk");
   if (ph !== "day") el.classList.add(ph);
-  el.classList.toggle("on", ph !== "day" && !native);
+  el.classList.remove("on");   // 夜・夕方の色かぶせは見にくいのでやめた（いつも昼の写真のまま見せる）
   return ph;
 }
 // 地点の景色を出す。まず写真（すぐ出る）を重ね、うしろでストリートビューを用意する。写真が出せたら true
@@ -346,7 +346,7 @@ function localDay(tz){ try { return new Intl.DateTimeFormat("ja-JP", {timeZone: 
 function renderLocal(){
   const d = local.data, el = $("#local"); if (!d || !d.tz) { el.hidden = true; return; }
   el.hidden = false;
-  const ph = phaseAt(walk.stops[Math.max(0, cur)]), tag = ph === "night" ? "・🌙夜の見え方" : ph === "dusk" ? "・🌇夕暮れの見え方" : "";
+  const tag = "";
   el.innerHTML = `${d.icon ? `<img src="${esc(d.icon)}" alt="">` : "🕒"}<span>現地 <b>${localTime(d.tz)}</b>${d.text ? `・${esc(d.text)}` : ""}${d.temp != null ? ` ${Math.round(d.temp)}℃` : ""}${tag}</span>`;
   el.title = tag ? "ストリートビューの写真は昼に撮られたものが多いので、現地のいまの時間に合わせて色を重ねています" : "";
   const m = $("#lmeta"); if (m) m.innerHTML = `${d.icon ? `<img src="${esc(d.icon)}" alt="">` : ""}現地 ${localDay(d.tz)} ${localTime(d.tz)}${d.text ? `・${esc(d.text)}` : ""}${d.temp != null ? ` ${Math.round(d.temp)}℃` : ""}`;
