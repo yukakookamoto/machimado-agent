@@ -357,11 +357,15 @@ function fmtPop(n){
   if (n >= 1e4) return `約${Math.round(n / 1e4).toLocaleString("ja-JP")}万人`;
   return `約${n.toLocaleString("ja-JP")}人`;
 }
-async function fillCountry(s){
-  if (!s || s.space || s.lat == null) return;
+function countryOf(s){   // 地点が届いたらすぐ問い合わせておく（はじめての国は数秒かかるため）
+  if (!s || s.space || s.lat == null) return Promise.resolve({});
   const k = `${s.lat.toFixed(2)},${s.lng.toFixed(2)}`;
   if (!countryCache.has(k)) countryCache.set(k, fetch(`/api/country?lat=${s.lat}&lng=${s.lng}`).then(r => r.ok ? r.json() : {}).catch(() => ({})));
-  const d = await countryCache.get(k), el = $("#cinfo");
+  return countryCache.get(k);
+}
+async function fillCountry(s){
+  if (!s || s.space || s.lat == null) return;
+  const d = await countryOf(s), el = $("#cinfo");
   if (!el || walk.stops[cur] !== s || !d || !d.country) return;
   const place = [d.region, d.city && d.city !== d.region ? d.city : ""].filter(Boolean).join(" ");
   const items = [
@@ -702,7 +706,7 @@ function onEvent(ev){
     if (ev.name === "add_stop" && !ev.stop) addStep("📍 確認が足りず、やり直し", "ng");
     if (ev.stop) {
       walk.stops.push(ev.stop); const i = walk.stops.length - 1; refine(ev.stop);
-      fetchVoice(ev.stop.narration); if (i) fetchVoice(`次は${ev.stop.name}だよ。${ev.stop.space ? "ふわっと移動しよう！" : "いっしょに歩こう！"}`);   // 声は先に作っておく（読みの確認に数秒かかるため）
+      fetchVoice(ev.stop.narration); countryOf(ev.stop); if (i) fetchVoice(`次は${ev.stop.name}だよ。${ev.stop.space ? "ふわっと移動しよう！" : "いっしょに歩こう！"}`);   // 声は先に作っておく（読みの確認に数秒かかるため）
       finishCard(ev.stop, i); drawRoute(); renderBar();
       if (i === 0) { if (!ev.stop.space) local.pending = loadLocal(ev.stop); if (tour.on) tourFrom(0); else show(0); }
       else markCards();
