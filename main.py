@@ -17,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 
 from agent import MAPS_API_KEY, run_walk
 import voice
+import country
 
 
 class JsonFormatter(logging.Formatter):
@@ -119,6 +120,16 @@ async def local_info(lat: float, lng: float):
     if out.get("tz"):
         _local_cache[key] = (time.time(), out)
     return out
+
+
+@app.get("/api/country")
+async def country_info(lat: float, lng: float):
+    """散歩している場所の国のプロフィール（国名・地域・人口・政治体制・公用語・首都）"""
+    try:
+        return await country.profile(lat, lng, MAPS_API_KEY)
+    except Exception as e:
+        log.warning("country failed: %s", e)
+        return {}
 
 
 @app.get("/api/yomi")

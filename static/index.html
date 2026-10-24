@@ -64,6 +64,14 @@ footer{padding:0 24px 24px;font-size:12px;color:var(--ink2)}
 /* 景色の写真を2枚重ね、次の写真が届いてからふわっと入れかえる（読み込み中に黒い画面を出さない） */
 .still{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .5s;pointer-events:none;z-index:2}
 .still.on{opacity:1}
+/* 国のプロフィール（小さく1〜2行） */
+.cinfo{display:flex;flex-wrap:wrap;gap:2px 0;font-size:12px;color:var(--ink2);margin:2px 0 4px;line-height:1.6}
+.cinfo:empty{display:none}
+.cinfo span{white-space:nowrap}
+.cinfo>span+span::before{content:"｜";margin:0 6px;color:var(--line)}
+.cinfo b{color:var(--ink);font-weight:700}
+.cinfo .cr{margin-left:6px}
+.cinfo small{font-size:10.5px}
 .still.push{animation:push 1.1s ease-out both}
 @keyframes push{from{transform:scale(1)}to{transform:scale(1.06)}}
 /* 現地の時間に合わせた見え方（ストリートビューの写真はほとんど昼に撮られているので、夕方・夜は色をかぶせてそろえる） */
@@ -318,10 +326,12 @@ function setView(s){
 function plate(s, i){ const p = $("#plate"); p.innerHTML = `📍 ${i + 1}. ${esc(s.name)}${s.local_name ? `<small>${esc(s.local_name)}</small>` : ""}`; p.classList.add("on"); clearTimeout(plate.t); plate.t = setTimeout(() => p.classList.remove("on"), 5000); }
 function renderInfo(i){
   const s = walk.stops[i]; if (!s) return;
+  setTimeout(() => fillCountry(s), 0);
   const phr = (s.phrases && s.phrases.length) ? s.phrases : (s.phrase ? [{text: s.phrase, reading: s.phrase_reading, meaning: s.phrase_meaning}] : []);
   const lang = guessLang(phr.map(p => p.text).join(" "));
   $("#info").className = "info";
   $("#info").innerHTML = `<h2>${esc(s.name)}${s.local_name ? `<small>${esc(s.local_name)}</small>` : ""}</h2>
+    ${s.space ? "" : `<div class="cinfo" id="cinfo"></div>`}
     <div class="meta"><span class="lmeta" id="lmeta"></span>${local.data && local.data.tz ? "・" : ""}${s.from_prev_m ? `前の地点から約${s.from_prev_m >= 1000 ? (s.from_prev_m / 1000).toFixed(1) + "km" : s.from_prev_m + "m"}・` : ""}${s.date ? `撮影 ${esc(s.date)}・` : ""}${s.source ? `<a href="${esc(s.source)}" target="_blank" rel="noopener">出典</a>` : ""}</div>
     <p style="margin:0">${esc(s.narration)}</p>
     ${phr.length ? `<div class="phrases">${phr.map(p => `<div class="phrase"><button class="say" data-say="${esc(p.text)}" data-lang="${lang}" title="読み上げ">🔊</button><div style="min-width:0"><b>${esc(p.text)}</b><small>${esc(p.reading || "")}</small><small>${esc(p.meaning || "")}</small></div></div>`).join("")}</div>` : ""}
@@ -338,6 +348,32 @@ async function show(i){
 }
 function goTo(i){ if (tour.on) tourFrom(i); else { tourStop(); show(i); } }
 function guessLang(t){ t = t || ""; if (/[А-яЁё]/.test(t)) return "ru-RU"; if (/[àâçéèêëîïôûùüÿœ]/i.test(t)) return "fr-FR"; if (/[¿¡ñ]/.test(t)) return "es-ES"; if (/[äöüß]/i.test(t)) return "de-DE"; if (/[一-鿿]/.test(t)) return "zh-TW"; if (/[àèìòù]/i.test(t)) return "it-IT"; return "en-US"; }
+
+// ================= 国のプロフィール（国名・地域・人口・政治体制・公用語・首都） =================
+const countryCache = new Map();
+function fmtPop(n){
+  if (!n) return "";
+  if (n >= 1e8) return `約${(n / 1e8).toFixed(n >= 1e9 ? 1 : 2).replace(/\.?0+$/, "")}億人`;
+  if (n >= 1e4) return `約${Math.round(n / 1e4).toLocaleString("ja-JP")}万人`;
+  return `約${n.toLocaleString("ja-JP")}人`;
+}
+async function fillCountry(s){
+  if (!s || s.space || s.lat == null) return;
+  const k = `${s.lat.toFixed(2)},${s.lng.toFixed(2)}`;
+  if (!countryCache.has(k)) countryCache.set(k, fetch(`/api/country?lat=${s.lat}&lng=${s.lng}`).then(r => r.ok ? r.json() : {}).catch(() => ({})));
+  const d = await countryCache.get(k), el = $("#cinfo");
+  if (!el || walk.stops[cur] !== s || !d || !d.country) return;
+  const place = [d.region, d.city && d.city !== d.region ? d.city : ""].filter(Boolean).join(" ");
+  const items = [
+    `<b>${d.flag ? d.flag + " " : ""}${esc(d.country)}</b>${place ? `<span class="cr">${esc(place)}</span>` : ""}`,
+    d.population ? `人口 ${fmtPop(d.population)}${d.popYear ? `<small>（${esc(d.popYear)}）</small>` : ""}` : "",
+    d.government && d.government.length ? `${esc(d.government.slice(0, 2).join("・"))}` : "",
+    d.languages && d.languages.length ? `公用語 ${esc(d.languages.slice(0, 3).join("・"))}` : "",
+    d.capital ? `首都 ${esc(d.capital)}` : "",
+  ].filter(Boolean);
+  el.innerHTML = items.map(x => `<span>${x}</span>`).join("");
+  el.title = `国の情報：${d.source || ""}`;
+}
 
 // ================= 現地の時間と天気 =================
 const local = {key: "", data: null, timer: null, say: null, pending: null};
