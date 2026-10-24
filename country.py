@@ -9,7 +9,10 @@ import time
 import httpx
 
 log = logging.getLogger("machimado.country")
-UA = {"User-Agent": "machimado-agent/1.0 (hackathon demo)"}
+try:   # Wikimedia は連絡先入りの User-Agent を求める（ないと 429 になりやすい）
+    from agent import UA
+except Exception:
+    UA = {"User-Agent": "machimado-agent/1.0 (hackathon demo)"}
 _geo: dict[str, tuple[float, dict]] = {}
 _facts: dict[str, tuple[float, dict]] = {}
 
@@ -99,7 +102,7 @@ async def _wikidata(http: httpx.AsyncClient, cc: str) -> dict:
 
 
 async def _restcountries(http: httpx.AsyncClient, cc: str) -> dict:
-    r = await http.get(f"https://restcountries.com/v3.1/alpha/{cc}", params={"fields": "population,languages,capital,translations"})
+    r = await http.get(f"https://restcountries.com/v3.1/alpha/{cc}", params={"fields": "population,languages,capital,translations"}, follow_redirects=True)
     r.raise_for_status()
     d = r.json(); d = d[0] if isinstance(d, list) else d
     return {"population": d.get("population"), "popYear": "", "government": [], "languages": list((d.get("languages") or {}).values())[:4],
@@ -111,33 +114,45 @@ _ja_cache: dict[str, str] = {}
 JP = __import__("re").compile(r"[\u3040-\u30ff\u4e00-\u9fff]")
 
 
-async def _to_japanese(words: list[str]) -> dict[str, str]:
-    """英語や現地語のままの名前（州の名前・政治体制など）を、日本語の一般的な言い方にする（Gemini）"""
+async def _to_japanese(words: list[str], gov_for: str = "") -> tuple[dict[str, str], str]:
+    """英語や現地語のままの名前（州の名前・政治体制など）を、日本語の一般的な言い方にする（Gemini）。
+    gov_for に国名があれば、その国の政治体制（日本語の短い言い方）も答えてもらう（データが取れなかったときの補い）"""
     todo = [w for w in dict.fromkeys(words) if w and not JP.search(w) and w not in _ja_cache]
-    if todo:
+    gov = _ja_cache.get("__gov__" + gov_for, "") if gov_for else ""
+    if todo or (gov_for and not gov):
         import json
         from google.genai import types
         import agent
         prompt = ("次の語を、日本の地図帳や百科事典で使われる一般的な日本語の表記にしてください。"
                   "地名はカタカナや漢字の慣用表記（例：Catalunya→カタルーニャ州、England→イングランド、Taipei City→台北市）、"
-                  "政治体制は日本語の用語（例：parliamentary monarchy→議会君主制、federal republic→連邦共和制）。"
-                  "JSON の {\"元の語\": \"日本語\"} だけを返す。\n" + json.dumps(todo, ensure_ascii=False))
+                  "政治体制は日本語の用語（例：parliamentary monarchy→議会君主制、federal republic→連邦共和制）。\n"
+                  "items には、元の語(src)と日本語(ja)の組を、元の語の数だけ入れる。\n語：" + json.dumps(todo, ensure_ascii=False)
+                  + (f"\nあわせて government に、{gov_for}の政治体制を日本語の短い用語で1〜2個（例：立憲君主制・議院内閣制）。" if gov_for and not gov else ""))
+        schema = {"type": "OBJECT", "properties": {"items": {"type": "ARRAY", "items": {"type": "OBJECT", "properties": {
+            "src": {"type": "STRING"}, "ja": {"type": "STRING"}}, "required": ["src", "ja"]}}, "government": {"type": "STRING"}}, "required": ["items"]}
         for _, client in agent.gemini_backends():
-            try:
-                kw = {"response_mime_type": "application/json", "temperature": 0}
-                m = (agent.VISION_MODELS[-1] if agent.VISION_MODELS else "gemini-2.5-flash-lite")
-                if m.startswith("gemini-2.5"):
-                    kw["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
-                resp = await client.aio.models.generate_content(model=m, contents=prompt, config=types.GenerateContentConfig(**kw))
-                d = json.loads(resp.text or "{}")
-                for w in todo:
-                    v = str(d.get(w) or "").strip()
-                    if v and len(v) <= 40:
-                        _ja_cache[w] = v
+            done = False
+            for m in agent.VISION_MODELS or ["gemini-2.5-flash"]:
+                try:
+                    kw = {"response_mime_type": "application/json", "response_schema": schema, "temperature": 0}
+                    if m.startswith("gemini-2.5"):
+                        kw["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
+                    resp = await client.aio.models.generate_content(model=m, contents=prompt, config=types.GenerateContentConfig(**kw))
+                    d = json.loads(resp.text or "{}")
+                    for it in d.get("items") or []:
+                        src, ja = str(it.get("src") or ""), str(it.get("ja") or "").strip()
+                        if src in todo and ja and len(ja) <= 40:
+                            _ja_cache[src] = ja
+                    g = str(d.get("government") or "").strip()
+                    if gov_for and g and len(g) <= 40:
+                        _ja_cache["__gov__" + gov_for] = gov = g
+                    done = True
+                    break
+                except Exception as e:
+                    ERRORS.append(f"ja {m}: {str(e)[:160]}"); del ERRORS[:-20]
+            if done:
                 break
-            except Exception as e:
-                ERRORS.append(f"ja: {str(e)[:160]}"); del ERRORS[:-20]
-    return {w: _ja_cache.get(w, w) for w in words}
+    return {w: _ja_cache.get(w, w) for w in words}, gov
 
 
 async def profile(lat: float, lng: float, key: str) -> dict:
@@ -163,12 +178,16 @@ async def profile(lat: float, lng: float, key: str) -> dict:
                     ERRORS.append(f"{fn.__name__} {cc}: {str(e)[:160]}"); del ERRORS[:-20]
             if facts:
                 _facts[cc] = (time.time(), facts)
+            else:   # 取れなかったときも、しばらくは何度も問い合わせない
+                _facts[cc] = (time.time() - 7 * 86400 + 600, {})
     facts = facts or {}
     out = {**where, "cc": cc, "flag": flag(cc), "country": where.get("country") or facts.get("countryName", ""),
            **{k: facts.get(k) for k in ("population", "popYear", "government", "languages", "capital", "source")}}
     words = [out.get("region") or "", out.get("city") or "", out.get("capital") or "", out.get("country") or ""] + list(out.get("government") or []) + list(out.get("languages") or [])
     try:
-        ja = await _to_japanese([w for w in words if w])
+        ja, gov = await _to_japanese([w for w in words if w], "" if out.get("government") else (out.get("country") or cc))
+        if gov and not out.get("government"):
+            out["government"] = [x.strip() for x in gov.replace("、", "・").split("・") if x.strip()][:2]
         for k in ("region", "city", "capital", "country"):
             if out.get(k):
                 out[k] = ja.get(out[k], out[k])
