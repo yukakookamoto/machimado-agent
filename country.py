@@ -59,31 +59,43 @@ async def _where(http: httpx.AsyncClient, lat: float, lng: float, key: str) -> d
     return {}
 
 
-SPARQL = """SELECT ?pop ?popDate ?rk ?govLabel ?langLabel ?capLabel ?cLabel WHERE {
+Q_POP = """SELECT ?pop ?date ?pref WHERE {
+  ?c wdt:P297 "%s"; p:P1082 ?s. ?s ps:P1082 ?pop; wikibase:rank ?rk.
+  FILTER(?rk != wikibase:DeprecatedRank) OPTIONAL { ?s pq:P585 ?date }
+  BIND(IF(?rk = wikibase:PreferredRank, 1, 0) AS ?pref)
+} ORDER BY DESC(?pref) DESC(?date) LIMIT 1"""
+Q_LAB = """SELECT ?kind ?ja ?en WHERE {
   ?c wdt:P297 "%s".
-  OPTIONAL { ?c p:P1082 ?ps. ?ps ps:P1082 ?pop; wikibase:rank ?rk. OPTIONAL { ?ps pq:P585 ?popDate } }
-  OPTIONAL { ?c wdt:P122 ?gov }
-  OPTIONAL { ?c wdt:P37 ?lang }
-  OPTIONAL { ?c wdt:P36 ?cap }
-  SERVICE wikibase:label { bd:serviceParam wikibase:language "ja,en". }
-}"""
+  { ?c wdt:P122 ?item. BIND("gov" AS ?kind) } UNION { ?c wdt:P37 ?item. BIND("lang" AS ?kind) }
+  UNION { ?c wdt:P36 ?item. BIND("cap" AS ?kind) } UNION { BIND(?c AS ?item) BIND("c" AS ?kind) }
+  OPTIONAL { ?item rdfs:label ?ja FILTER(LANG(?ja) = "ja") }
+  OPTIONAL { ?item rdfs:label ?en FILTER(LANG(?en) = "en") }
+} LIMIT 60"""
+ERRORS: list[str] = []
+
+
+async def _sparql(http: httpx.AsyncClient, q: str) -> list[dict]:
+    r = await http.get("https://query.wikidata.org/sparql", params={"query": q, "format": "json"},
+                       headers={**UA, "Accept": "application/sparql-results+json"})
+    if r.status_code != 200:
+        raise RuntimeError(f"wikidata {r.status_code}: {r.text[:120]}")
+    return r.json()["results"]["bindings"]
 
 
 async def _wikidata(http: httpx.AsyncClient, cc: str) -> dict:
-    r = await http.get("https://query.wikidata.org/sparql", params={"query": SPARQL % cc, "format": "json"},
-                       headers={**UA, "Accept": "application/sparql-results+json"})
-    r.raise_for_status()
-    rows = r.json()["results"]["bindings"]
-    if not rows:
-        return {}
     val = lambda x, k: (x.get(k) or {}).get("value")
-    pops = [((val(x, "rk") or "").endswith("PreferredRank"), val(x, "popDate") or "", val(x, "pop")) for x in rows
-            if val(x, "pop") and not (val(x, "rk") or "").endswith("DeprecatedRank")]
-    best = max(pops) if pops else None
-    uniq = lambda k: list(dict.fromkeys(v for v in (val(x, k) for x in rows) if v and not v.startswith("http")))
-    return {"population": int(float(best[2])) if best else None, "popYear": (best[1] or "")[:4] if best else "",
-            "government": uniq("govLabel")[:3], "languages": uniq("langLabel")[:4], "capital": (uniq("capLabel") or [""])[0],
-            "countryName": (uniq("cLabel") or [""])[0], "source": "Wikidata"}
+    pop = await _sparql(http, Q_POP % cc)
+    labs = await _sparql(http, Q_LAB % cc)
+    if not pop and not labs:
+        return {}
+    got: dict[str, list[tuple[str, str]]] = {}
+    for x in labs:
+        got.setdefault(val(x, "kind"), []).append((val(x, "ja") or "", val(x, "en") or ""))
+    names = lambda k: list(dict.fromkeys((ja or en) for ja, en in got.get(k, []) if (ja or en)))
+    p0 = pop[0] if pop else {}
+    return {"population": int(float(val(p0, "pop"))) if val(p0, "pop") else None, "popYear": (val(p0, "date") or "")[:4],
+            "government": names("gov")[:3], "languages": names("lang")[:4], "capital": (names("cap") or [""])[0],
+            "countryName": (names("c") or [""])[0], "source": "Wikidata"}
 
 
 async def _restcountries(http: httpx.AsyncClient, cc: str) -> dict:
@@ -93,6 +105,39 @@ async def _restcountries(http: httpx.AsyncClient, cc: str) -> dict:
     return {"population": d.get("population"), "popYear": "", "government": [], "languages": list((d.get("languages") or {}).values())[:4],
             "capital": (d.get("capital") or [""])[0], "countryName": ((d.get("translations") or {}).get("jpn") or {}).get("common", ""),
             "source": "REST Countries"}
+
+
+_ja_cache: dict[str, str] = {}
+JP = __import__("re").compile(r"[\u3040-\u30ff\u4e00-\u9fff]")
+
+
+async def _to_japanese(words: list[str]) -> dict[str, str]:
+    """英語や現地語のままの名前（州の名前・政治体制など）を、日本語の一般的な言い方にする（Gemini）"""
+    todo = [w for w in dict.fromkeys(words) if w and not JP.search(w) and w not in _ja_cache]
+    if todo:
+        import json
+        from google.genai import types
+        import agent
+        prompt = ("次の語を、日本の地図帳や百科事典で使われる一般的な日本語の表記にしてください。"
+                  "地名はカタカナや漢字の慣用表記（例：Catalunya→カタルーニャ州、England→イングランド、Taipei City→台北市）、"
+                  "政治体制は日本語の用語（例：parliamentary monarchy→議会君主制、federal republic→連邦共和制）。"
+                  "JSON の {\"元の語\": \"日本語\"} だけを返す。\n" + json.dumps(todo, ensure_ascii=False))
+        for _, client in agent.gemini_backends():
+            try:
+                kw = {"response_mime_type": "application/json", "temperature": 0}
+                m = (agent.VISION_MODELS[-1] if agent.VISION_MODELS else "gemini-2.5-flash-lite")
+                if m.startswith("gemini-2.5"):
+                    kw["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
+                resp = await client.aio.models.generate_content(model=m, contents=prompt, config=types.GenerateContentConfig(**kw))
+                d = json.loads(resp.text or "{}")
+                for w in todo:
+                    v = str(d.get(w) or "").strip()
+                    if v and len(v) <= 40:
+                        _ja_cache[w] = v
+                break
+            except Exception as e:
+                ERRORS.append(f"ja: {str(e)[:160]}"); del ERRORS[:-20]
+    return {w: _ja_cache.get(w, w) for w in words}
 
 
 async def profile(lat: float, lng: float, key: str) -> dict:
@@ -115,8 +160,21 @@ async def profile(lat: float, lng: float, key: str) -> dict:
                         break
                 except Exception as e:
                     log.warning("%s %s failed: %s", fn.__name__, cc, str(e)[:160])
+                    ERRORS.append(f"{fn.__name__} {cc}: {str(e)[:160]}"); del ERRORS[:-20]
             if facts:
                 _facts[cc] = (time.time(), facts)
     facts = facts or {}
-    return {**where, "cc": cc, "flag": flag(cc), "country": where.get("country") or facts.get("countryName", ""),
-            **{k: facts.get(k) for k in ("population", "popYear", "government", "languages", "capital", "source")}}
+    out = {**where, "cc": cc, "flag": flag(cc), "country": where.get("country") or facts.get("countryName", ""),
+           **{k: facts.get(k) for k in ("population", "popYear", "government", "languages", "capital", "source")}}
+    words = [out.get("region") or "", out.get("city") or "", out.get("capital") or "", out.get("country") or ""] + list(out.get("government") or []) + list(out.get("languages") or [])
+    try:
+        ja = await _to_japanese([w for w in words if w])
+        for k in ("region", "city", "capital", "country"):
+            if out.get(k):
+                out[k] = ja.get(out[k], out[k])
+        for k in ("government", "languages"):
+            if out.get(k):
+                out[k] = list(dict.fromkeys(ja.get(x, x) for x in out[k]))
+    except Exception as e:
+        ERRORS.append(f"ja: {str(e)[:160]}")
+    return out

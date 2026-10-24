@@ -123,10 +123,11 @@ async def local_info(lat: float, lng: float):
 
 
 @app.get("/api/country")
-async def country_info(lat: float, lng: float):
+async def country_info(lat: float, lng: float, debug: int = 0):
     """散歩している場所の国のプロフィール（国名・地域・人口・政治体制・公用語・首都）"""
     try:
-        return await country.profile(lat, lng, MAPS_API_KEY)
+        out = await country.profile(lat, lng, MAPS_API_KEY)
+        return {**out, "errors": country.ERRORS[-5:]} if debug else out
     except Exception as e:
         log.warning("country failed: %s", e)
         return {}
