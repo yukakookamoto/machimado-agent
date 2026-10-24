@@ -366,7 +366,7 @@ async function fillCountry(s){
   const place = [d.region, d.city && d.city !== d.region ? d.city : ""].filter(Boolean).join(" ");
   const items = [
     `<b>${d.flag ? d.flag + " " : ""}${esc(d.country)}</b>${place ? `<span class="cr">${esc(place)}</span>` : ""}`,
-    d.population ? `人口 ${fmtPop(d.population)}${d.popYear ? `<small>（${esc(d.popYear)}）</small>` : ""}` : "",
+    d.population ? `人口 ${fmtPop(d.population)}${d.popYear ? `<small>（${esc(d.popYear)}年）</small>` : d.popSource === "推定" ? `<small>（推定）</small>` : ""}` : "",
     d.government && d.government.length ? `${esc(d.government.slice(0, 2).join("・"))}` : "",
     d.languages && d.languages.length ? `公用語 ${esc(d.languages.slice(0, 3).join("・"))}` : "",
     d.capital ? `首都 ${esc(d.capital)}` : "",
