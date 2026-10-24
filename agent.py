@@ -466,7 +466,7 @@ async def run_walk(request: str, trace_id: str) -> AsyncIterator[dict]:
                     if tries >= 3:
                         yield {"type": "error", "message": "AIの返事が来ませんでした。少し待って、もう一度お試しください。"}
                         return
-                    if tries >= 2 and len(models) > 1:
+                    if len(models) > 1:   # 同じモデルを待ちつづけず、すぐ次のモデルへ
                         models.append(models.pop(0))
                     yield {"type": "note", "text": f"AIの返事が遅いので、もう一度たずねます（{models[0]}）"}
                     continue
@@ -479,12 +479,20 @@ async def run_walk(request: str, trace_id: str) -> AsyncIterator[dict]:
                         models = list(MODELS)
                         yield {"type": "note", "text": f"AIの呼び先を {backend} に切りかえました（理由：{msg[:220]}）"}
                         continue
+                    # 通信の途中で切れた・混みあっている（中身のないエラーも）→ 別のモデルでやり直す
+                    if (not msg.strip() or any(x in msg for x in ("imed out", "imeout", "DEADLINE", "503", "UNAVAILABLE", "500", "INTERNAL", "429", "RESOURCE_EXHAUSTED", "overloaded"))) and tries < 3:
+                        tries += 1
+                        log.warning(json.dumps({"trace_id": trace_id, "step": step, "transient": models[0], "error": f"{type(e).__name__}: {msg[:200]}"}, ensure_ascii=False))
+                        if len(models) > 1:
+                            models.append(models.pop(0))
+                        yield {"type": "note", "text": f"AIが混みあっているので、{models[0]} でたずねなおします"}
+                        continue
                     if any(x in msg for x in ("404", "NOT_FOUND", "not found", "not supported")) and len(models) > 1:
                         log.warning("model %s unavailable, falling back: %s", models[0], msg[:200])
                         models.pop(0)
                         yield {"type": "note", "text": f"モデルを {models[0]} に切りかえました"}
                         continue
-                    yield {"type": "error", "message": f"AIの呼び出しに失敗しました（{msg[:160]}）"}
+                    yield {"type": "error", "message": f"AIの呼び出しに失敗しました（{(msg or type(e).__name__)[:160]}）"}
                     return
             if resp is None or not resp.candidates:
                 yield {"type": "error", "message": "AIから返事がありませんでした。"}
